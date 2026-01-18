@@ -8,19 +8,35 @@ Unlike the "Single-user" mode of the past, the Multi-user installation introduce
 
 ### The Installation
 
-The most reliable way to install Nix today, ensuring all modern features (like Flakes) are ready to use, is often via the **Determinate Systems installer** or the official installer configured with flags.
+You have two excellent options for installing Nix. Both set up the multi-user daemon and work on Linux and macOS.
 
-For a standard, official approach that sets up the daemon:
+#### Option 1: Determinate Systems Installer (Recommended)
+
+The Determinate Systems installer is the most reliable way to install Nix today. It enables modern features automatically and includes a built-in uninstaller.
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+```
+
+- Works on Linux, macOS, and WSL
+- Multi-user with daemon by default
+- **Enables `nix-command` and `flakes` automatically**
+
+#### Option 2: Official Nix Installer
+
+For a standard, official approach:
 
 ```bash
 sh <(curl -L https://nixos.org/nix/install) --daemon
 ```
 
-_Note: On Linux, this requires `systemd` and `sudo`. On macOS, it manages build users and volumes automatically._
+- Requires `systemd` and `sudo` on Linux
+- macOS: manages build users and volumes automatically
+- **Requires manual enablement of experimental features (see below)**
 
-### Enabling Modern Features (Flakes)
+### Enabling Modern Features
 
-By default, the stable Nix installer might not enable the experimental unified CLI and Flakes. To use the modern interface (commands like `nix shell`, `nix build`, `nix run`), you must enable them.
+If you used the official installer (Option 2), you must manually enable the experimental features. The Determinate Systems installer does this automatically.
 
 Edit (or create) the configuration file at `/etc/nix/nix.conf` and add:
 
