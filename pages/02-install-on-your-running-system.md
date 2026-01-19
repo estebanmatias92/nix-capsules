@@ -83,7 +83,12 @@ Check your version:
 
 ```bash
 $ nix --version
-nix (Nix) 2.18.1  # Or newer
+nix (Nix) 2.33.0  # Or newer
+```
+
+```bash
+# If you got nix through Determinate Systems
+nix (Determinate Nix 3.15.0) 2.33.0
 ```
 
 Now, let's run a program without "installing" it permanently into your global environment. We will use `nixpkgs#hello` (The "Hello World" of package management).
@@ -104,6 +109,8 @@ If you inspect the store, you will find it there:
 ```bash
 $ ls -d /nix/store/*hello*
 /nix/store/mn5...-hello-2.12.1
+# /nix/store/00k...-hello-2.12.1.tar.gz.drv
+# /nix/store/72p...-hello-2.12.1.drv
 ```
 
 ## Uninstalling
@@ -112,7 +119,7 @@ Because Nix is self-contained in `/nix`, uninstalling it is mostly about removin
 
 ## Summary
 
-You now have a functional Nix installation with the **Daemon** active and **Flakes** enabled. You can run software ephemerally (`nix run`), and your system remains clean.
+You now have a functional Nix installation with the **Daemon** active and **nix-commands** plus **Flakes** enabled. You can run software ephemerally (`nix run`), and your system remains clean.
 
 ## Next Capsule
 
