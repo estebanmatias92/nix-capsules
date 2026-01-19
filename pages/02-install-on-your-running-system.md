@@ -108,7 +108,7 @@ If you inspect the store, you will find it there:
 
 ```bash
 $ ls -d /nix/store/*hello*
-/nix/store/mn5...-hello-2.12.1
+/nix/store/mn5...-hello-2.12.1 # Package's dir
 # /nix/store/00k...-hello-2.12.1.tar.gz.drv
 # /nix/store/72p...-hello-2.12.1.drv
 ```
