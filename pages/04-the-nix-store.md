@@ -55,14 +55,12 @@ Each store path contains everything the package needs:
 
 ```bash
 /nix/store/...-hello-2.12.1/
-├── bin/
-│   └── hello          # The hello binary
-├── share/
-│   └── man/
-│       └── man1/
-│           └── hello.1
-└── lib/
-    └── hello.conf     # Configuration files
+├──  bin
+│   └── 󰡯 hello                     # The hello binary
+└──  share
+    ├──  info
+    ├──  locale
+    └──  man
 ```
 
 The binary references only paths within its own store directory.
@@ -102,12 +100,12 @@ ls -ld /nix/store/*-hello-*
 
 The hash serves multiple purposes:
 
-| Purpose | How Hash Helps |
-| ------- | -------------- |
-| **Uniqueness** | Different content = different hash |
-| **Identification** | Hash identifies exact derivation |
-| **Caching** | Same hash = already built = reuse |
-| **Dependency tracking** | References stored in derivation |
+| Purpose                 | How Hash Helps                     |
+| ----------------------- | ---------------------------------- |
+| **Uniqueness**          | Different content = different hash |
+| **Identification**      | Hash identifies exact derivation   |
+| **Caching**             | Same hash = already built = reuse  |
+| **Dependency tracking** | References stored in derivation    |
 
 Consider what happens when `openssl` is updated:
 
@@ -124,13 +122,14 @@ Breaking down a store path:
 
 ```bash
 /nix/store/3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x-hello-2.12.1/
-└──┬──────┘ └────────┬─────────────────────┘ └──┬───────┘
-   │                 │                          └── Human-readable name + version
+└──┬──────┘ └────────┬────────────────────┘ └──┬───────┘
+   │                 │                         └── Human-readable name + version
    │                 └── Base-32 encoded hash of content
    └── Fixed prefix
 ```
 
 Components:
+
 - `/nix/store/`: Fixed prefix
 - `3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x`: 32-character base-32 hash
 - `hello-2.12.1`: Human-readable name (no spaces, special chars)
@@ -155,7 +154,7 @@ The store has special permissions:
 ```bash
 # Store is owned by nix-daemon
 ls -la /nix/store | head -5
-# drwxr-xr-x nix nix  /nix/store
+# drwxr-xr-x root nix  /nix/store
 
 # Regular users can read but not write
 cat /nix/store/*-hello-2.12.1/bin/hello  # Works
@@ -178,5 +177,5 @@ Only the Nix daemon (running as `nixbld*` users) can modify the store.
 In the next capsule, we'll explore the **Nix expression language**—the syntax for writing Nix code, including types, functions, and data structures.
 
 ```nix
-# Next: ./pages/05-basics-of-language.md
+# Next: ./05-basics-of-language.md
 ```
