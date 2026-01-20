@@ -41,7 +41,7 @@ jobs:
             "nix profile list --help"
             "nix profile wipe-history --help"
             "nix flake --help"
-            "command -v nix-collect-garbage"
+            "nix-collect-garbage --dry-run"
           )
 
           failed=0
@@ -72,7 +72,7 @@ jobs:
           # Check that all referenced files exist
           for file in pages/*.md; do
             # Check Next Capsule links
-            next=$(grep -oP '\]\(\./\d+-[^)]+\.md\)' "$file" | sed 's/[][]//g' | sed 's/)(//')
+            next=$(grep -oP '\]\(\./\d+-[^)]+\.md\)' "$file" | sed 's/[][]//g' | sed 's/^(\|)$//g'
             if [ -n "$next" ]; then
               for link in $next; do
                 if [ ! -f "$link" ]; then
