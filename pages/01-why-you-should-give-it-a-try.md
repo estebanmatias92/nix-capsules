@@ -82,6 +82,4 @@ While Nix has a learning curve regarding the language and the override patterns,
 
 In the next post, we will install Nix on your current operating system (Linux or macOS) using the modern, recommended installation methods.
 
-```nix
-# Next: ./02-install-on-your-running-system.md
-```
+> [**Nix Capsules 2: Install on Your Running System**](./02-install-on-your-running-system.md)

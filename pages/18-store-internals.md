@@ -413,6 +413,4 @@ nix why-depends .#package .#package
 
 In the next capsule, we'll explore **multiple outputs**—how to split packages into separate outputs for efficient storage and deployment.
 
-```nix
-# Next: ./19-multiple-outputs.md
-```
+> [**Nix Capsules 19: Multiple Outputs**](./19-multiple-outputs.md)

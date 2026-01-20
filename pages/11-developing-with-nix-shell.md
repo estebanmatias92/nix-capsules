@@ -199,6 +199,4 @@ Configure your IDE to use the Nix environment:
 
 In the next capsule, we'll explore the **flake architecture**—how the flake system works.
 
-```nix
-# Next: ./12-flake-architecture.md
-```
+> [**Nix Capsules 12: Flake Architecture**](./12-flake-architecture.md)

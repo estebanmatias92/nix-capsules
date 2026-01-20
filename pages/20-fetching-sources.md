@@ -33,10 +33,10 @@ stdenv.mkDerivation {
 
 ### Required Attributes
 
-| Attribute | Purpose |
-| --------- | ------- |
-| `url` | URL to download |
-| `sha256` | Expected SHA-256 hash (base32-encoded) |
+| Attribute | Purpose                                |
+| --------- | -------------------------------------- |
+| `url`     | URL to download                        |
+| `sha256`  | Expected SHA-256 hash (base32-encoded) |
 
 ### Computing the Hash
 
@@ -90,12 +90,12 @@ fetchFromGitHub {
 
 ### Attributes
 
-| Attribute | Purpose |
-| --------- | ------- |
-| `owner` | Repository owner |
-| `repo` | Repository name |
-| `rev` | Git commit SHA or tag |
-| `sha256` | Expected hash |
+| Attribute | Purpose               |
+| --------- | --------------------- |
+| `owner`   | Repository owner      |
+| `repo`    | Repository name       |
+| `rev`     | Git commit SHA or tag |
+| `sha256`  | Expected hash         |
 
 ### Using Refs
 
@@ -234,10 +234,10 @@ fetchurl {
 
 ### URL vs Hash
 
-| What | Determines Path |
-| ---- | --------------- |
-| Input-addressed | URL, builder, all inputs |
-| Fixed-output | Only the declared `sha256` |
+| What            | Determines Path            |
+| --------------- | -------------------------- |
+| Input-addressed | URL, builder, all inputs   |
+| Fixed-output    | Only the declared `sha256` |
 
 This means:
 
@@ -545,7 +545,7 @@ env | grep -i proxy
 
 ---
 
-## Congratulations!
+## Congratulations
 
 You've completed the Nix Capsules series. You now understand:
 

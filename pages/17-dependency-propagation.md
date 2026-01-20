@@ -270,6 +270,4 @@ myapp → libfoo → bar
 
 In the next capsule, we'll explore **store internals**—how Nix handles fixed-output derivations, content-addressable storage, and path resolution.
 
-```nix
-# Next: ./18-store-internals.md
-```
+> [**Nix Capsules 18: Store Internals**](./18-store-internals.md)

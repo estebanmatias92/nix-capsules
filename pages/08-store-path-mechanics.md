@@ -357,6 +357,4 @@ Fetched sources use declared hash:
 
 In the next capsule, we'll explore **stdenv**—the standard environment that provides build utilities and phases for most Nix packages.
 
-```nix
-# Next: ./09-building-with-stdenv.md
-```
+> [**Nix Capsules 9: Building with stdenv**](./09-building-with-stdenv.md)

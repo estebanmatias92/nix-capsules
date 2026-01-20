@@ -190,6 +190,4 @@ For single-output derivations, `out` is the derivation itself.
 
 In the next capsule, we'll explore **store path mechanics**—how Nix computes the unique paths where build outputs are stored and why content-addressing matters.
 
-```nix
-# Next: ./08-store-path-mechanics.md
-```
+> [**Nix Capsules 8: Store Path Mechanics**](./08-store-path-mechanics.md)

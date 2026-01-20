@@ -204,6 +204,4 @@ While convenient, overuse of `with` can make code harder to read because it obsc
 
 We have covered the data structures. In the next capsule, **Functions and Imports**, we will learn how to create logic and modularize our Nix code by splitting it across multiple files.
 
-```nix
-# Next: ./06-functions-and-imports.md
-```
+> [**Nix Capsules 6: Functions and Imports**](./06-functions-and-imports.md)

@@ -435,6 +435,4 @@ pkgs = import <nixpkgs> {
 
 In the next capsule, we'll explore **advanced override patterns**—how to use `makeOverridable`, chain overrides, and understand the fixed-point pattern.
 
-```nix
-# Next: ./16-advanced-overrides.md
-```
+> [**Nix Capsules 16: Advanced Overrides**](./16-advanced-overrides.md)

@@ -125,6 +125,4 @@ You now have a functional Nix installation with the **Daemon** active and **nix-
 
 In the next capsule, we will take a look at **Nix Shell** and **Nix Profiles**, understanding **ephemeral** and **persistent environments**, and how **generations** work.
 
-```nix
-# Next: ./03-enter-environment.md
-```
+> [**Nix Capsules 3: Enter the Environment**](./03-enter-environment.md)

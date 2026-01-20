@@ -176,6 +176,4 @@ Only the Nix daemon (running as `nixbld*` users) can modify the store.
 
 In the next capsule, we'll explore the **Nix expression language**—the syntax for writing Nix code, including types, functions, and data structures.
 
-```nix
-# Next: ./05-basics-of-language.md
-```
+> [**Nix Capsules 5: Basics of Language**](./05-basics-of-language.md)

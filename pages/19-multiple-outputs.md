@@ -408,6 +408,4 @@ buildInputs = [
 
 In the final capsule, we'll explore **fetching sources**—how to download and verify sources using fetchurl, fetchFromGitHub, and other fetch helpers.
 
-```nix
-# Next: ./20-fetching-sources.md
-```
+> [**Nix Capsules 20: Fetching Sources**](./20-fetching-sources.md)

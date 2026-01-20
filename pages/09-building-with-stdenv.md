@@ -228,6 +228,4 @@ stdenv.mkDerivation {
 
 In the next capsule, we'll explore **runtime dependencies**—how Nix automatically discovers what libraries and files your built program needs to run.
 
-```nix
-# Next: ./10-automatic-runtime-dependencies.md
-```
+> [**Nix Capsules 10: Automatic Runtime Dependencies**](./10-automatic-runtime-dependencies.md)
