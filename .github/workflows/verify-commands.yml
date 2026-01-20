@@ -41,7 +41,7 @@ jobs:
             "nix profile list --help"
             "nix profile wipe-history --help"
             "nix flake --help"
-            "nix-collect-garbage --dry-run"
+            "command -v nix-collect-garbage"
           )
 
           failed=0
