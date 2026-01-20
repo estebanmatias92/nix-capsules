@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - "pages/*.md"
-  workflow_dispatch:  
+  workflow_dispatch:
 
 jobs:
   verify-commands:
@@ -73,7 +73,7 @@ jobs:
           # Check that all referenced files exist
           for file in pages/*.md; do
             # Check Next Capsule links
-            next=$(grep -oP '\]\(\./\d+-[^)]+\.md\)' "$file" | sed 's/[][]//g' | sed 's/^(\|)$//g'
+            next=$(grep -oP '\]\(\./\d+-[^)]+\.md\)' "$file" | sed 's/[][]//g; s/^(\|)$//g')
             if [ -n "$next" ]; then
               for link in $next; do
                 if [ ! -f "$link" ]; then
