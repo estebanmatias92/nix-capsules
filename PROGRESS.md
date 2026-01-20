@@ -169,14 +169,14 @@ January 20, 2026
 2. Fixed typos in capsule 02's "Next Capsule" section:
    - "ephimeral" → "ephemeral"
    - "envinronments" → "environments"
-   - Verified description accurately matches capsule 03 contents
+3. Committed refactored changes (30 files changed, restructured capsules)
+4. Updated README.md with new table of contents reflecting restructured sequence
+5. Fixed capsule 14 intro to correctly reference capsule 13 (package composition) instead of capsule 11
 
 ---
 
 ## Pending Tasks
 
-1. Commit all refactored changes to main branch
-2. Verify all code examples in new capsules
-3. Add index.md with new table of contents
-4. Consider adding CI check for command verification
-5. Review outros in remaining capsules for accuracy
+1. Verify all code examples in new capsules
+2. Consider adding CI check for command verification
+3. Push changes to remote
