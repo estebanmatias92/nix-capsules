@@ -1,8 +1,8 @@
-# Nix Capsules 19: Fundamentals of stdenv
+# Nix Capsules 9: Building with stdenv
 
 ## Introduction
 
-Welcome to the nineteenth Nix capsule. In the previous capsule, we explored store paths. Now we'll explore **stdenv**—the **standard environment** that provides build utilities and phases for most Nix packages.
+In the previous capsule, we explored store path mechanics. Now we'll explore **stdenv**—the **standard environment** that provides build utilities and phases for most Nix packages.
 
 `stdenv` is a set of conventions and tools that makes packaging software consistent across thousands of packages in nixpkgs.
 
@@ -176,8 +176,8 @@ stdenv.mkDerivation {
   name = "graphviz-2.50.0";
 
   src = fetchurl {
-    url = "https://gitlab.com/api/v4/projects/4207231/packages/generic/graphviz-releases/2.50.0/graphviz-2.50.0.tar.gz";
-    sha256 = "abc123...";
+    url = "https://example.com/graphviz-2.50.0.tar.gz";
+    sha256 = "sha256-abc123...";
   };
 
   buildInputs = [ stdenv.gd stdenv.libpng stdenv.pkg-config ];
@@ -220,8 +220,8 @@ stdenv.mkDerivation {
 
 ## Next Capsule
 
-In the next capsule—the final one in this series—we'll explore **basic dependencies and hooks**—how packages depend on each other and influence their dependents.
+In the next capsule, we'll explore **runtime dependencies**—how Nix automatically discovers what libraries and files your built program needs to run.
 
 ```nix
-# Next: ./pages/20-basic-dependencies-and-hooks.md
+# Next: ./pages/10-automatic-runtime-dependencies.md
 ```

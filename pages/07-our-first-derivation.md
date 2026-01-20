@@ -19,6 +19,7 @@ derivation {
 ```
 
 The attributes define:
+
 - **name**: Identifier for this derivation (appears in the store path)
 - **system**: Target platform (e.g., "x86_64-linux", "aarch64-darwin")
 - **builder**: Executable that performs the build
@@ -187,8 +188,8 @@ For single-output derivations, `out` is the derivation itself.
 
 ## Next Capsule
 
-In the next capsule, we'll write a **working derivation** that actually builds something—a simple program.
+In the next capsule, we'll explore **store path mechanics**—how Nix computes the unique paths where build outputs are stored and why content-addressing matters.
 
 ```nix
-# Next: ./pages/07-working-derivation.md
+# Next: ./pages/08-store-path-mechanics.md
 ```

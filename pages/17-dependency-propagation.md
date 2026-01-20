@@ -1,8 +1,8 @@
-# Nix Capsules 20: Basic Dependencies and Hooks
+# Nix Capsules 17: Dependency Propagation
 
 ## Introduction
 
-Welcome to the twentieth and final Nix capsule. In the previous capsule, we explored stdenv. In this capsule, we'll explore **dependencies and hooks**—how packages depend on each other and influence their dependents through the Nix build system.
+In the previous capsule, we explored advanced override patterns. Now we'll explore **dependency propagation**—how packages depend on each other and influence their dependents through the Nix build system.
 
 Understanding dependencies is crucial for packaging complex software that relies on libraries, tools, and runtime assets.
 
@@ -133,10 +133,10 @@ stdenv.mkDerivation {
     mkdir -p $out/nix-support
     cat > $out/nix-support/setup-hook.sh << 'EOF'
 addToSearchPath() {
-  local varName="\$1"
-  local dir="\$2"
-  if [[ ":\$${varName}:" != *":\$dir:"* ]]; then
-    export "${varName}=\${dir}\${${varName}+:\${${varName}:}}"
+  local varName="$1"
+  local dir="$2"
+  if [[ ":${varName}:" != *":${dir}:"* ]]; then
+    export "${varName}=${dir}${${varName}+:${${varName}:}}"
   fi
 }
 EOF
@@ -238,6 +238,22 @@ nix derivation show /nix/store/...-mypackage.drv | jq '.[].inputDrvs'
 nix develop .#mypackage --command env | grep -E '^(PATH|PKG_CONFIG|NIX_)'
 ```
 
+## Understanding the Dependency Graph
+
+The dependency graph flows in two directions:
+
+**Build-time dependencies:**
+```
+myapp → libfoo → bar
+```
+
+**Runtime dependencies (closure):**
+```
+myapp → libfoo → bar
+   ↓
+   └── bar (runtime)
+```
+
 ## Summary
 
 - `buildInputs` adds runtime dependencies to PATH and closure
@@ -247,29 +263,10 @@ nix develop .#mypackage --command env | grep -E '^(PATH|PKG_CONFIG|NIX_)'
 - Environment hooks allow packages to influence sibling dependencies
 - Use pkg-config, setup hooks, and environment hooks for proper integration
 
-## Conclusion
+## Next Capsule
 
-Congratulations! You've completed the Nix Capsules series. You now understand:
-
-- The Nix expression language (types, functions, imports)
-- How derivations work and how to build packages
-- Generic builders and stdenv conventions
-- Package composition patterns (inputs, callPackage, override)
-- Search paths, store paths, and garbage collection
-- Dependencies and hooks for complex packages
-
-With this foundation, you're ready to:
-- Create your own Nix packages
-- Use flakes for project management
-- Understand and modify nixpkgs
-- Set up development environments with `nix develop`
-
-Continue exploring the Nix ecosystem—the community is active and helpful!
+In the next capsule, we'll explore **store internals**—how Nix handles fixed-output derivations, content-addressable storage, and path resolution.
 
 ```nix
-# End of Nix Capsules
-# For more, see:
-# - Nix Manual: https://nix.dev/manual/nix
-# - Nixpkgs Manual: https://nixos.org/manual/nixpkgs
-# - NixOS Wiki: https://nixos.org/wiki
+# Next: ./pages/18-store-internals.md
 ```

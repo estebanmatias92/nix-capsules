@@ -69,7 +69,7 @@ Name:               hello
 Flake attribute:    legacyPackages.x86_64-linux.hello
 Original flake URL: flake:nixpkgs
 Locked flake URL:   github:NixOS/nixpkgs/...?narHash=sha256-...%3D
-Store paths:        /nix/store/...-hello-2.12.2
+Store paths:        /nix/store/...-hello-2.12.1
 ```
 
 ### Removing Packages
@@ -117,4 +117,8 @@ This reliability means you can upgrade packages without fear. If the new version
 
 ## Next Capsule
 
-In the next capsule, we will explore the **Nix Language** basics. To understand how to configure systems or write packages, we need to understand the syntax that drives these derivations.
+In the next capsule, we will dive into the **Nix Store** mechanics, understanding exactly how paths are computed and what goes into that hash.
+
+```nix
+# Next: ./pages/04-the-nix-store.md
+```

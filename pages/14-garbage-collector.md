@@ -214,8 +214,8 @@ For reproducible systems, keep multiple generations for rollback capability.
 
 ## Next Capsule
 
-In the next capsule, we'll organize multiple packages with the **inputs design pattern**—a foundational approach for managing software repositories in Nix.
+In the next capsule, we'll dive deep into **nixpkgs**—the central package collection that provides thousands of packages and utilities for Nix.
 
 ```nix
-# Next: ./pages/12-inputs-design-pattern.md
+# Next: ./pages/15-nixpkgs-deep-dive.md
 ```

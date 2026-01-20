@@ -85,10 +85,16 @@ The parameter `{ a, b }` requires the passed set to contain exactly those keys.
 
 ```nix
 nix-repl> mul { a = 3; b = 4; c = 5; }
-error: anonymous function at (string):1:2 called with unexpected argument `c'
+error:
+       ...
+       error: function 'anonymous lambda' called with unexpected argument 'c'
+       ...
 
 nix-repl> mul { a = 3; }
-error: anonymous function at (string):1:2 called without required argument `b'
+error:
+       ...
+       error: function 'anonymous lambda' called without required argument 'b'
+       ...
 ```
 
 Nix enforces exact attribute matching—extra or missing attributes cause errors.
@@ -122,21 +128,26 @@ nix-repl> mul { a = 3; b = 4; extra = 5; }
 60
 ```
 
+_Note: Nix only supports default argument (?) values when **destructuring attribute sets**._
+
 ## Imports
 
 The `import` builtin loads a `.nix` file and evaluates it as an expression. Create three files:
 
 **a.nix:**
+
 ```nix
 3
 ```
 
 **b.nix:**
+
 ```nix
 4
 ```
 
 **mul.nix:**
+
 ```nix
 a: b: a * b
 ```
@@ -153,29 +164,77 @@ nix-repl> mul a b
 
 The imported file's scope is isolated—it doesn't inherit the caller's variables.
 
+**test.nix:**
+
 ```nix
-nix-repl> let x = 5; in import ./a.nix
-error: undefined variable `x' at /home/user/a.nix:1:1
+x
 ```
 
-Pass data to imported modules by having them return functions:
+```nix
+nix-repl> let x = 5; in import ./test.nix
+error:
+       ...
+       error: undefined variable 'x' at /home/user/test.nix:1:1:
+       ...
+```
+
+The imported `test.nix` has no access to `x` from the caller's `let` binding.
+
+## Passing Data via Functions
+
+The solution is to have imported files return functions that accept parameters:
 
 **test.nix:**
+
 ```nix
 { a, b ? 3, message ? "default" }:
 if a > b then "${message}: yes" else "${message}: no"
 ```
 
 ```nix
+nix-repl> :r      # Reload imported files again after the changes
 nix-repl> import ./test.nix { a = 5; message = "result"; }
 "result: yes"
 ```
 
-## Flakes and Modern Import Patterns
+_Note: You must log back into the REPL and import `test.nix` again, or use the `:r` command to reload the imported files.._
 
-With Nix flakes, you typically use `flake.nix` files for modularity instead of manual imports:
+## Debugging with builtins.trace
+
+Nix includes a built-in `trace` function for debugging. It prints a message during evaluation and returns the second argument:
+
+**test.nix:**
+
+```nix
+{ a, b ? 3, trueMsg ? "yes", falseMsg ? "no" }:
+if a > b
+  then builtins.trace trueMsg true
+  else builtins.trace falseMsg false
+```
+
+```nix
+nix-repl> import ./test.nix { a = 5; trueMsg = "ok"; }
+trace: ok
+true
+```
+
+Key points:
+
+- Multiple default parameters (`b ? 3`, `trueMsg ? "yes"`, `falseMsg ? "no"`)
+- `builtins.trace(message, value)` prints the message and returns `value`
+- **Lazy evaluation**: the trace only prints when the expression is evaluated
+
+## Flakes: A Modern Alternative to Manual Imports
+
+Flakes provide a standardized, reproducible way to organize Nix projects. Unlike manual imports, flakes use an `inputs`/`outputs` model where:
+
+- **inputs** declare dependencies (other flakes, like nixpkgs)
+- **outputs** expose packages, dev shells, and other artifacts
+
+This approach is the modern standard for Nix projects, replacing ad-hoc file composition with a consistent structure.
 
 **flake.nix:**
+
 ```nix
 {
   description = "My Nix project";
@@ -185,25 +244,35 @@ With Nix flakes, you typically use `flake.nix` files for modularity instead of m
   };
 
   outputs = { self, nixpkgs }: {
-    packages.x86_64-linux.hello = nixpkgs.legacyPackages.x86_64-linux.hello;
+    packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.hello;
+
+    devShells.x86_64-linux.default = nixpkgs.mkShell {
+      buildInputs = [ nixpkgs.legacyPackages.x86_64-linux.hello ];
+    };
   };
 }
 ```
 
-Use `nix develop` to enter a development shell and `nix run` to execute binaries.
+- Use `nix build` to build packages defined in `packages`
+- Use `nix develop` to enter the development shell
+
+_Note: `legacyPackages.x86_64-linux` is Nix's term for the traditional nixpkgs package collection. We'll explore how packages (derivations) are built in the next capsule._
 
 ## Summary
 
 - Nix functions are anonymous and single-parameter; multiple parameters use currying
 - Argument sets with pattern matching provide named, unordered parameters
 - Default values and `...` enable optional and variadic parameters
-- `import` loads external Nix files with isolated scope
-- Modern flakes provide a standardized project structure with inputs and outputs
+- `import` loads external Nix files with isolated scope—no caller variables accessible
+- Pass data to imported modules by having them return functions with parameters
+- `builtins.trace(message, value)` enables debugging by printing during lazy evaluation
+- Flakes provide a standardized `inputs`/`outputs` structure for project modularity
+- Use `nix build` for packages and `nix develop` for development shells
 
 ## Next Capsule
 
 In the next capsule, we'll write our first **derivation**—Nix's fundamental building block for describing how to build software packages.
 
 ```nix
-# Next: ./pages/06-our-first-derivation.md
+# Next: ./pages/07-our-first-derivation.md
 ```

@@ -31,9 +31,9 @@ Nix supports the usual primitives found in most languages.
 ```nix
 nix-repl> 1 + 2
 3
+
 nix-repl> "Hello" + " World"
 "Hello World"
-
 ```
 
 - **Strings:** Enclosed in double quotes.
@@ -73,7 +73,12 @@ Lists are sequences of values separated by **whitespace**, not commas.
 
 ```nix
 nix-repl> [ 1 2 "three" (2+2) ]
-[ 1 2 "three" 4 ]
+[
+  1
+  2
+  "three"
+  4
+]
 ```
 
 ### Attribute Sets
@@ -82,8 +87,10 @@ The **Attribute Set** (often called "attrset" or "set") is the core data structu
 
 ```nix
 nix-repl> { a = 1; b = "foo"; }
-{ a = 1; b = "foo"; }
-
+{
+  a = 1;
+  b = "foo";
+}
 ```
 
 You access values using the dot `.` operator.
@@ -97,9 +104,21 @@ nix-repl> s.a
 You can define nested sets directly:
 
 ```nix
-nix-repl> { x.y.z = 10; }
-{ x = { y = { z = 10; }; }; }
+nix-repl> my_set = { x.y.z = 10; }
+nix-repl> my_set
+{
+  x = { ... };
+}
+
+nix-repl> :p my_set
+{
+  x = {
+    y = { z = 10; };
+  };
+}
 ```
+
+_Note: The REPL has a built-in command `:p` (print) that evaluates and prints the expression recursively._
 
 ### Recursive Sets (`rec`)
 
@@ -107,10 +126,13 @@ By default, attributes in a set cannot refer to other attributes within the same
 
 ```nix
 nix-repl> rec {
-            one = 1;
-            two = one + 1;
-          }
-{ one = 1; two = 2; }
+        >   one = 1;
+        >   two = one + 1;
+        > }
+{
+  one = 1;
+  two = 2;
+}
 ```
 
 _Note: Use `rec` with caution. In complex derivations, it can sometimes lead to infinite recursion errors if not managed carefully._
@@ -123,10 +145,10 @@ Use `let` to define local variables. The variables are only valid within the exp
 
 ```nix
 nix-repl> let
-            x = 10;
-            y = 5;
-          in
-            x + y
+        >   x = 10;
+        >   y = 5;
+        > in
+        >   x + y
 15
 ```
 
@@ -181,3 +203,7 @@ While convenient, overuse of `with` can make code harder to read because it obsc
 ## Next Capsule
 
 We have covered the data structures. In the next capsule, **Functions and Imports**, we will learn how to create logic and modularize our Nix code by splitting it across multiple files.
+
+```nix
+# Next: ./pages/06-functions-and-imports.md
+```

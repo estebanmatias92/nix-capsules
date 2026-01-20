@@ -200,5 +200,5 @@ Configure your IDE to use the Nix environment:
 In the next capsule, we'll explore the **garbage collector**—how to clean up unused store paths and manage disk space in Nix.
 
 ```nix
-# Next: ./pages/11-garbage-collector.md
+# Next: ./pages/14-garbage-collector.md
 ```

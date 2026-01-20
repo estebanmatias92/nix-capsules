@@ -1,10 +1,43 @@
 # AGENTS.md - Nix Capsules Documentation Project
 
-This is a documentation repository for **Nix Capsules**, an educational series about the **modern Nix package manager (Nix 3.x)**. The content consists of markdown files explaining Nix concepts with a focus on flakes, the unified CLI, and contemporary best practices.
+## Mission Statement
 
-## Modern Nix Standard
+**Nix Capsules** is a **foundational learning resource** for modern Nix (3.x). Its purpose is to build mental models that enable users to read and understand specialized documentation like the Home Manager manual, NixOS manual, and nix.dev reference.
 
-This documentation targets **Nix 3.x** with the following features enabled:
+### What Nix Capsules Is
+
+- **Coherent, sequential education**: 20+ progressive capsules building from basics to advanced patterns
+- **Modern Nix only**: Flakes and unified CLI as the defacto standard
+- **Concept-focused**: Teaches transferable understanding (store mechanics, derivations, overlays)
+- **Preparatory**: Users who complete the series can read ecosystem documentation independently
+
+### What Other Resources Are For
+
+| Resource | Purpose | When to Use |
+|----------|---------|-------------|
+| **Zero to Nix** | Awareness/teaser for Nix | First exposure, "a-ha moments" |
+| **nix.dev** | Command/language reference | Look up syntax, options, builtins |
+| **NixOS Manual** | System configuration reference | Configure NixOS systems |
+| **Home Manager Manual** | Home directory management | Manage ~/.config with Nix |
+| **Nix Capsules** | Foundational mental models | Learn how Nix works conceptually |
+
+### Scope
+
+Nix Capsules covers **user-level Nix**:
+- Package management with flakes
+- Development environments (`nix develop`)
+- Building packages and derivations
+- Common patterns (overrides, inputs, callPackage)
+- Nix store mechanics and garbage collection
+
+**Out of scope** (covered by dedicated manuals):
+- Full NixOS system configuration (NixOS Manual)
+- Home directory management (Home Manager Manual)
+- CI/CD deployment patterns (nix.dev, FlakeHub docs)
+
+### Modern Nix Standard
+
+This documentation teaches **modern Nix only** (Nix 3.x with flakes enabled):
 
 - **Flakes**: Use `flake.nix` for project-level dependency management
 - **Unified CLI**: Use `nix` command (not legacy `nix-env`, `nix-instantiate`, etc.)
@@ -12,18 +45,18 @@ This documentation targets **Nix 3.x** with the following features enabled:
 
 ### Modern vs Legacy Command Reference
 
-| Legacy Command              | Modern Command / Equivalent                      | Notes |
-| --------------------------- | ------------------------------------------------ | ----- |
-| `nix-env -i pkg`            | `nix profile add nixpkgs#pkg`                    | Use unified CLI |
-| `nix-env -u`                | `nix profile upgrade`                            | Use unified CLI |
-| `nix-shell`                 | `nix develop` or `nix shell`                     | Use unified CLI |
-| `nix-build`                 | `nix build`                                      | Use unified CLI |
-| `nix-instantiate`           | `nix eval`                                       | Use unified CLI |
-| `nix-store -q --references` | `nix path-info --json <path> \| jq -r '.[].references[]'` | No direct `nix store query` |
-| `nix-store --gc`            | `nix store gc`                                   | Basic GC only |
-| `nix-store --gc --list-roots` | (no direct modern equivalent)                  | Legacy only |
-| `nix-store --gc --delete-generations` | `nix-collect-garbage --delete-old` or `nix profile wipe-history` | Use wrapper command |
-| `nix-collect-garbage`       | `nix-collect-garbage` (still recommended)        | No modern equivalent, still actively used |
+| Legacy Command                        | Modern Command / Equivalent                                      | Notes                                     |
+| ------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------- |
+| `nix-env -i pkg`                      | `nix profile add nixpkgs#pkg`                                    | Use unified CLI                           |
+| `nix-env -u`                          | `nix profile upgrade`                                            | Use unified CLI                           |
+| `nix-shell`                           | `nix develop` or `nix shell`                                     | Use unified CLI                           |
+| `nix-build`                           | `nix build`                                                      | Use unified CLI                           |
+| `nix-instantiate`                     | `nix eval`                                                       | Use unified CLI                           |
+| `nix-store -q --references`           | `nix path-info --json <path> \| jq -r '.[].references[]'`        | No direct `nix store query`               |
+| `nix-store --gc`                      | `nix store gc`                                                   | Basic GC only                             |
+| `nix-store --gc --list-roots`         | (no direct modern equivalent)                                    | Legacy only                               |
+| `nix-store --gc --delete-generations` | `nix-collect-garbage --delete-old` or `nix profile wipe-history` | Use wrapper command                       |
+| `nix-collect-garbage`                 | `nix-collect-garbage` (still recommended)                        | No modern equivalent, still actively used |
 
 ### Garbage Collection Note
 
@@ -39,10 +72,18 @@ The `nix-collect-garbage` command is actively maintained and recommended in offi
 
 ```nix
 {
-  description = "Example project";
-  inputs = { nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable"; };
+  description = "My Nix project";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  };
+
   outputs = { self, nixpkgs }: {
-    packages.x86_64-linux.hello = nixpkgs.legacyPackages.x86_64-linux.hello;
+    packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.hello;
+
+    devShells.x86_64-linux.default = nixpkgs.mkShell {
+      buildInputs = [ nixpkgs.legacyPackages.x86_64-linux.hello ];
+    };
   };
 }
 ```
@@ -52,6 +93,7 @@ The `nix-collect-garbage` command is actively maintained and recommended in offi
 ```
 prj-nix-capsules/
 ├── index.md              # Main landing page with table of contents
+├── PROGRESS.md           # Track current work status and pending tasks
 ├── pages/                # Documentation pages (numbered sequentially)
 │   ├── 01-why-you-should-give-it-a-try.md
 │   ├── 02-install-on-your-running-system.md
@@ -59,15 +101,26 @@ prj-nix-capsules/
 └── AGENTS.md             # This file
 ```
 
-## Build/Lint/Test Commands
+### Before Starting Work
 
-This is a **documentation-only project** with no build system, tests, or linting.
+**Read `PROGRESS.md` first** to understand the current state of the project:
 
-- No build commands required - markdown files are static content
-- No test suite exists
-- Optionally: `nix profile add nixpkgs#markdownlint-cli`
+- What phases have been completed
+- Which pages have been modified and their status
+- What pending work exists
+- Key decisions and rationale made during the project
 
-### Verification Commands
+### After Making Changes
+
+**Update `PROGRESS.md`** to keep the project state current:
+
+- Add new work to "What We Did" section
+- Update file lists (committed vs pending)
+- Add new key decisions and rationale
+- Update page status table
+- Update session context and next steps
+
+## Verification Commands
 
 Verify Nix code examples:
 
@@ -82,6 +135,7 @@ Then type expressions to confirm expected output. Use `nix path-info --json <pat
 Before adding or updating commands in this documentation:
 
 1. **Run with `--help` to verify the command exists**:
+
    ```bash
    nix profile add --help
    ```
@@ -93,10 +147,12 @@ Before adding or updating commands in this documentation:
 4. **If a command doesn't exist**, mark it as "(no direct modern equivalent)" rather than inventing a command
 
 **Example of what NOT to do:**
+
 - Do NOT write `nix store query --references` - this command does NOT exist
 - Instead: mark it as `(no direct modern equivalent)`
 
 **Example of what TO do:**
+
 - Run `nix store --help` to see all available subcommands
 - Run `nix store gc --help` to verify a specific command works
 - If uncertain, test the command before documenting it
@@ -106,7 +162,7 @@ Before adding or updating commands in this documentation:
 ### Markdown Formatting
 
 - Use standard Markdown syntax throughout
-- Code blocks must specify language (```nix, ```bash)
+- Code blocks must specify language (`nix,`bash)
 - Use ATX-style headers (`#` for h1, `##` for h2, etc.)
 
 ### Nix Code Examples
@@ -171,11 +227,102 @@ builtins.tryEval expr                  # Safe eval: { success = true/false; valu
 - Code variables: lowercase with dashes (Nix convention)
 - Nix attribute sets: camelCase keys
 
+## Related Resources
+
+Use these resources as references for Nix concepts and commands. Each serves a different purpose in the learning journey.
+
+### Zero to Nix (Awareness/Teaser)
+
+**Main Site**: https://zero-to-nix.com/
+
+Best for: First exposure to Nix, "a-ha moments"
+
+This is a **marketing resource** from Determinate Systems that gives newcomers a quick taste of what Nix can do. It intentionally stays surface-level and links to nix.dev for practical usage.
+
+**Quick Start Guide** (8 steps):
+- [Install Nix](https://zero-to-nix.com/start/install)
+- [Run a program](https://zero-to-nix.com/start/nix-run)
+- [Development environments](https://zero-to-nix.com/start/nix-develop)
+- [Build a package](https://zero-to-nix.com/start/nix-build)
+- [Search packages](https://zero-to-nix.com/start/nix-search)
+- [Turn project into flake](https://zero-to-nix.com/start/init-flake)
+- [Uninstall](https://zero-to-nix.com/start/uninstall)
+- [Learn more](https://zero-to-nix.com/start/learn-more)
+
+**Core Concepts** (concise explanations):
+- [Nix](https://zero-to-nix.com/concepts/nix/)
+- [Nix flakes](https://zero-to-nix.com/concepts/flakes/)
+- [Derivations](https://zero-to-nix.com/concepts/derivations/)
+- [The Nix store](https://zero-to-nix.com/concepts/nix-store/)
+- [Development environments](https://zero-to-nix.com/concepts/dev-env/)
+- [Closures](https://zero-to-nix.com/concepts/closures/)
+- [Incremental builds](https://zero-to-nix.com/concepts/incremental-builds/)
+
+### nix.dev (Reference Manual)
+
+**Quick Start**: https://nix.dev/manual/nix/2.26/quick-start
+**Derivations**: https://nix.dev/manual/nix/2.28/language/derivations
+
+Best for: Looking up command syntax, language builtins, options
+
+This is the **official reference documentation** for the Nix language and commands. Use it to:
+- Look up specific command flags
+- Reference builtin functions
+- Check language syntax rules
+
+**Command Reference** (unified CLI - experimental but recommended):
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix3-build
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix3-develop
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix3-flake
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix3-profile
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix3-store
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix3-derivation
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix3-eval
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix3-run
+- https://nix.dev/manual/nix/2.26/command-ref/new-cli/nix3-repl
+
+**Language Reference**:
+- https://nix.dev/manual/nix/2.26/language/
+- https://nix.dev/manual/nix/2.26/language/types
+- https://nix.dev/manual/nix/2.26/language/syntax
+- https://nix.dev/manual/nix/2.26/language/builtins
+
+**Package Management**:
+- https://nix.dev/manual/nix/2.26/package-management/profiles
+- https://nix.dev/manual/nix/2.26/package-management/garbage-collection
+
+### NixOS and Flakes Book
+
+**GitHub**: https://github.com/ryan4yin/nixos-and-flakes-book
+
+Best for: Deeper practical examples, NixOS configuration
+
+A comprehensive book covering both user-level Nix and full system configuration with NixOS.
+
+### Nix Pills (Historical)
+
+**Main**: https://nixos.org/guides/nix-pills/
+
+Best for: Understanding historical context, original derivation examples
+
+The classic Nix tutorial series. Some content is outdated (pre-flakes) but still valuable for understanding the underlying mechanics. Verify examples against modern Nix.
+
+### External References
+
+- [nix.dev tutorials - Declarative developer environments](https://nix.dev/tutorials/declarative-and-reproducible-developer-environments)
+- [nix.dev tutorials - Dev environment](https://nix.dev/tutorials/dev-environment)
+- [Ian Henry's blog - How to learn Nix](https://ianthehenry.com/posts/how-to-learn-nix/)
+- [Shopify Engineering - What is Nix?](https://shopify.engineering/what-is-nix)
+- [Nix Pills - Our first derivation](https://nixos.org/guides/nix-pills/our-first-derivation)
+
 ## Best Practices
 
-1. **Progressive Disclosure**: Start simple, add complexity gradually
-2. **Verify Code Examples**: Test all Nix code snippets before committing
-3. **Consistent Terminology**: Use same terms throughout
+1. **Modern Nix First**: Teach flakes and unified CLI as the only way. Legacy commands are documented only when necessary (e.g., `nix-collect-garbage`).
+2. **Progressive Disclosure**: Start simple, add complexity gradually
+3. **Verify Code Examples**: Test all Nix code snippets before committing
+4. **Consistent Terminology**: Use same terms throughout
+5. **Concept Transferability**: Focus on mental models that apply across all Nix usage (store mechanics, derivation evaluation, overlay composition)
 
 ## Common Tasks
 

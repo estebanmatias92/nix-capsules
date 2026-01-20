@@ -123,4 +123,8 @@ You now have a functional Nix installation with the **Daemon** active and **nix-
 
 ## Next Capsule
 
-In the next capsule, we will dive into the **Nix Store** mechanics, understanding exactly how paths are computed and what goes into that hash.
+In the next capsule, we will take a look at **Nix Shell** and **Nix Profiles**, understanding **ephemeral** and **persistent environments**, and how **generations** work.
+
+```nix
+# Next: ./pages/03-enter-environment.md
+```

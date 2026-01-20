@@ -163,5 +163,5 @@ You'll see `gd`, `libpng`, `fontconfig`, and their transitive dependencies—all
 In the next capsule, we'll use `nix develop` to create isolated development environments—perfect for hacking on projects without polluting your system.
 
 ```nix
-# Next: ./pages/10-developing-with-nix-shell.md
+# Next: ./pages/11-developing-with-nix-shell.md
 ```

@@ -1,208 +1,182 @@
-# Progress Tracking: Nix Capsules Documentation Fix
+# Progress Tracking: Nix Capsules Documentation Project
 
 ## Overview
 
-**Project**: Nix Capsules - Educational documentation for modern Nix (Nix 3.x)
+**Project**: Nix Capsules - Foundational learning resource for modern Nix (3.x)
 **Location**: `/home/matt/Obsidian_Vaults/Matias/04-projects/prj-nix-capsules/`
-**Status**: In Progress - Command Verification & Documentation Fixes
+**Status**: Complete Refactoring - 20 capsules restructured for optimal learning flow
 
 ---
 
-## What We Did
+## Completed Refactoring Summary
 
-### 1. Analyzed and Updated AGENTS.md
-- Created comprehensive documentation for agentic coding agents
-- Documented modern vs legacy Nix commands with a 3-column table
-- Added "Verifying Commands" section instructing agents to test commands in terminal before documenting
-- Added "Garbage Collection Note" explaining why some legacy commands remain necessary
+### Mission Clarity (AGENTS.md Updated)
 
-### 2. Discovered Critical Issue
-- Found that **`nix store query`** does NOT exist in modern Nix CLI (contrary to original AGENTS.md)
-- Verified this via terminal: `nix store query --help` returns "error: 'query' is not a recognised command"
-- This was a significant documentation bug that would mislead readers
+- Defined Nix Capsules as **foundational learning resource** for building mental models
+- Positioned against ecosystem: Zero to Nix (awareness), nix.dev (reference), NixOS/Home Manager manuals (specialized)
+- Scope: User-level Nix only (flakes, packages, dev environments) - no NixOS, no Home Manager
 
-### 3. Verified All Commands in Documentation
-- Extracted all `nix` commands from 20 markdown pages
-- Ran terminal tests on each command to verify existence
-- Created command verification table
+### Complete Capsule Restructuring (20 capsules)
 
-### 4. Updated 5 Documentation Pages with Correct Commands
+| Phase | # | Title | Key Changes |
+|-------|---|-------|-------------|
+| **Foundation** | 01 | Why You Should Give it a Try | Original |
+| | 02 | Install on Your Running System | Original |
+| | 03 | Enter the Environment | Original |
+| | 04 | **The Nix Store** | NEW - Store concept before language |
+| | 05 | Basics of Language | Renamed from 04-basics-of-language |
+| | 06 | Functions and Imports | Renamed |
+| **Building** | 07 | Our First Derivation | Renamed |
+| | 08 | **Store Path Mechanics** | NEW - Hashing, NAR, content-addressing |
+| | 09 | **Building with stdenv** | NEW - Consolidated (was 3 capsules) |
+| | 10 | Automatic Runtime Dependencies | Renamed |
+| | 11 | Developing with nix develop | Renamed |
+| **Structure** | 12 | **Flake Architecture** | NEW - Dedicated flake coverage |
+| | 13 | **Package Composition** | NEW - Merged inputs+callPackage |
+| | 14 | Garbage Collector | Renumbered from 11 |
+| **Advanced** | 15 | **Nixpkgs Deep Dive** | NEW - Merged params+overrides |
+| | 16 | **Advanced Overrides** | NEW - makeOverridable, chaining |
+| | 17 | **Dependency Propagation** | NEW - buildInputs, hooks |
+| | 18 | **Store Internals** | NEW - FODs, CAD, path resolution |
+| **Techniques** | 19 | **Multiple Outputs** | NEW |
+| | 20 | **Fetching Sources** | NEW |
 
-| Page | Issue Found | Fix Applied |
-|------|-------------|-------------|
-| `09-automatic-runtime-dependencies.md` | `nix store query --references` doesn't exist | Changed to `nix path-info --json <path> \| jq -r '.[].references[]'` |
-| `11-garbage-collector.md` | Multiple non-existent `nix store gc` flags | Rewrote with correct modern commands |
-| `17-nixpkgs-overriding-packages.md` | `nix store query --references` doesn't exist | Changed to `nix path-info --json` |
-| `18-nix-store-paths.md` | `nix store list`, `nix store query` don't exist | Changed to `nix store ls`, `nix path-info` |
-| `20-basic-dependencies-and-hooks.md` | `nix store query --references` doesn't exist | Changed to `nix path-info --json` |
+### Deleted Redundant Files
 
-### 5. Researched Garbage Collection Commands
-- Discovered that `nix store gc` only supports `--max` and `--dry-run`
-- Found no modern equivalent for generation management
-- Verified `nix-collect-garbage` is still actively maintained and recommended
-- Documented `nix profile wipe-history` as modern alternative for profile cleanup
+- `08-generic-builders.md` (merged into 09)
+- `15-nix-search-paths.md` (out of scope)
+- `19-fundamentals-of-stdenv.md` (merged into 09)
+- `12-inputs-design-pattern.md` (merged into 13)
+- `13-callpackage-design-pattern.md` (merged into 13)
+- `14-override-design-pattern.md` (merged into 16)
+- `16-nixpkgs-parameters.md` (merged into 15)
+- `17-nixpkgs-overriding-packages.md` (merged into 15)
+- `18-nix-store-paths.md` (content moved to 08)
+- `20-basic-dependencies-and-hooks.md` (merged into 17)
+- `07-working-derivation.md` (duplicate, removed)
+
+### Files Created
+
+- `04-the-nix-store.md` - Store mechanics fundamentals
+- `08-store-path-mechanics.md` - Hashing, NAR, base32 encoding
+- `09-building-with-stdenv.md` - Single consolidated stdenv coverage
+- `12-flake-architecture.md` - Complete flake reference
+- `13-package-composition.md` - Inputs pattern + callPackage
+- `15-nixpkgs-deep-dive.md` - Overlays, config, parameters
+- `16-advanced-overrides.md` - makeOverridable, fixed-point
+- `17-dependency-propagation.md` - buildInputs, nativeBuildInputs, hooks
+- `18-store-internals.md` - FODs, content-addressing, path resolution
+- `19-multiple-outputs.md` - env syntax, output splitting
+- `20-fetching-sources.md` - fetchurl, fetchFromGitHub, hash verification
 
 ---
 
-## Key Findings: Modern vs Legacy Commands
+## Key Structural Changes
 
-| Legacy Command | Modern Equivalent | Notes |
-|----------------|-------------------|-------|
-| `nix-env -i pkg` | `nix profile add nixpkgs#pkg` | ✅ Works |
-| `nix-env -u` | `nix profile upgrade` | ✅ Works |
-| `nix-shell` | `nix develop` or `nix shell` | ✅ Works |
-| `nix-build` | `nix build` | ✅ Works |
-| `nix-instantiate` | `nix eval` | ✅ Works |
-| `nix-store -q --references` | `nix path-info --json <path> \| jq -r '.[].references[]'` | No direct `nix store query` |
-| `nix-store --gc` | `nix store gc` | Only `--max` and `--dry-run` work |
-| `nix-store --gc --list-roots` | **No modern equivalent** | Legacy only |
-| `nix-store --gc --delete-generations` | `nix-collect-garbage --delete-old` | No direct `nix store gc` equivalent |
-| `nix-collect-garbage` | `nix-collect-garbage` (still recommended) | Wrapper command, not unified CLI |
+### Before vs After
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Store paths | Capsule 18 (after derivations) | Capsule 04 + 08 (before derivations) |
+| stdenv coverage | 3 capsules (08, 19, 20) | 1 capsule (09) |
+| Flakes | Mentioned in capsule 05 only | Dedicated capsule 12 |
+| NIX_PATH | Capsule 15 | Removed (out of scope) |
+| Total capsules | 20 (with redundancy) | 20 (no redundancy) |
+| CI/CD | Mentioned | Removed (out of scope) |
+
+### New Pedagogical Flow
+
+1. **Foundation** (01-06): Why → Install → Use → Store → Language → Functions
+2. **Building** (07-11): Derivation → Store mechanics → stdenv → Runtime deps → Dev environments
+3. **Structure** (12-14): Flakes → Package composition → Garbage collection
+4. **Advanced** (15-18): Nixpkgs → Overrides → Dependencies → Store internals
+5. **Techniques** (19-20): Multiple outputs → Fetching sources
 
 ---
 
-## Files Modified
+## Updated AGENTS.md
+
+### Mission Statement Added
 
 ```
-prj-nix-capsules/
-├── AGENTS.md                          # Updated command table + GC notes
-├── PROGRESS.md                        # This file
-└── pages/
-    ├── 09-automatic-runtime-dependencies.md
-    ├── 11-garbage-collector.md        # Completely rewritten
-    ├── 17-nixpkgs-overriding-packages.md
-    ├── 18-nix-store-paths.md
-    └── 20-basic-dependencies-and-hooks.md
+**Nix Capsules** is a **foundational learning resource** for modern Nix (3.x).
+Its purpose is to build mental models that enable users to read and understand
+specialized documentation like the Home Manager manual, NixOS manual, and
+nix.dev reference.
 ```
+
+### Resource Ecosystem Table
+
+| Resource | Purpose | When to Use |
+|----------|---------|-------------|
+| Zero to Nix | Awareness/teaser | First exposure, "a-ha moments" |
+| nix.dev | Command/language reference | Look up syntax, options, builtins |
+| Nix Capsules | Foundational mental models | Learn how Nix works conceptually |
+
+### Scope Defined
+
+- **In**: Package management with flakes, dev environments, derivations, patterns, store mechanics
+- **Out**: NixOS system config, Home Manager, CI/CD deployment patterns
 
 ---
 
-## Key Decisions and Rationale
+## Best Practices Updated
 
-### 1. Keep `nix-collect-garbage` in documentation despite being "legacy"
-- **Why**: The unified `nix` command does NOT provide equivalent functionality
-- `nix store gc` only supports `--max` and `--dry-run`
-- No modern replacement for `--list-roots`, `--delete-generations`, `--delete-dead`, `--empty-trash`
-- `nix-collect-garbage` is actively maintained and recommended in official docs
-
-### 2. Changed from `nix store query` to `nix path-info --json | jq`
-- **Why**: `nix store query` does not exist in modern Nix
-- `nix path-info --json` provides the same information in JSON format
-- This is the correct modern approach
-
-### 3. Added explicit "verify commands in terminal" instruction
-- **Why**: Found multiple non-existent commands in documentation
-- Prevents future documentation bugs
-- Agents must run `--help` on commands before documenting them
+1. **Modern Nix First**: Teach flakes and unified CLI as the only way
+2. **Progressive Disclosure**: Start simple, add complexity gradually
+3. **Verify Code Examples**: Test all Nix code snippets before committing
+4. **Consistent Terminology**: Use same terms throughout
+5. **Concept Transferability**: Focus on mental models (store, derivations, overlays)
 
 ---
 
 ## Commands Verified Working
 
-| Command | Verified |
-|---------|----------|
+| Command | Status |
+|---------|--------|
 | `nix profile add nixpkgs#pkg` | ✅ |
 | `nix profile upgrade` | ✅ |
 | `nix develop` | ✅ |
 | `nix build` | ✅ |
 | `nix eval` | ✅ |
 | `nix store gc` | ✅ (only `--max`, `--dry-run`) |
-| `nix store delete` | ✅ |
 | `nix path-info --json` | ✅ |
 | `nix derivation show` | ✅ |
 | `nix profile list` | ✅ |
-| `nix profile history` | ✅ |
 | `nix profile wipe-history` | ✅ |
-| `nix-collect-garbage` | ✅ (still works, wrapper) |
-| `nix store ls` | ✅ |
-| `nix why-depends` | ✅ |
+| `nix-collect-garbage` | ✅ (wrapper, still recommended) |
 
-## Commands That Don't Exist (Never Document)
+---
 
-- `nix store query` (and any `--references`, `--graph`, `--tree`, `--size` variants)
+## Commands That Don't Exist
+
+- `nix store query` (and variants)
 - `nix store list`
 - `nix store gc --list-roots`
 - `nix store gc --delete-generations`
-- `nix store gc --delete-dead`
-- `nix store gc --empty-trash`
-
----
-
-## Testing Protocol Used
-
-When verifying a command, always:
-
-```bash
-# 1. Check if command exists
-nix <command> --help
-
-# 2. Test basic functionality (safe commands only)
-nix <command> --dry-run
-
-# 3. Check for available subcommands
-nix <subcommand> --help
-
-# 4. Compare with legacy if needed
-nix-store --gc --help
-```
-
----
-
-## Remaining Work
-
-### High Priority
-1. **Review remaining pages** (01-08, 10, 12-16, 19) for similar issues
-   - May contain non-verified `nix` commands
-   - Search for patterns like `nix store query`, `nix store list`, `nix-collect-garbage -d`
-
-2. **Verify all code examples in pages**
-   - Some nix expressions may be outdated
-   - Test with current Nix version (2.33.0)
-
-### Medium Priority
-3. **Add code examples to AGENTS.md for common patterns**
-   - Show exact `jq` commands for parsing JSON output
-   - Example: `nix path-info --json <path> | jq -r '.[].references[]'`
-
-4. **Update AGENTS.md length**
-   - Currently 193 lines (over 150 target, but within acceptable 150-300 range)
-   - Could be trimmed if needed
-
-### Lower Priority
-5. **Consider adding a CI check**
-   - Automate command verification in pull requests
-   - Prevent regression of documented commands
-
----
-
-## Pages to Review
-
-| Page | Status |
-|------|--------|
-| `01-why-you-should-give-it-a-try.md` | ⏳ Pending |
-| `02-install-on-your-running-system.md` | ⏳ Pending |
-| `03-your-first-flake.md` | ⏳ Pending |
-| `04-building-with-flakes.md` | ⏳ Pending |
-| `05-packaging-software.md` | ⏳ Pending |
-| `06-intro-to-nix-language.md` | ⏳ Pending |
-| `07-intro-to-stdenv.md` | ⏳ Pending |
-| `08-building-with-stdenv.md` | ⏳ Pending |
-| `10-declarative-reproducible-environments.md` | ⏳ Pending |
-| `12-how-nix-works.md` | ⏳ Pending |
-| `13-building-packages.md` | ⏳ Pending |
-| `14-override-design-pattern.md` | ⏳ Pending |
-| `15-pinning-nixpkgs.md` | ⏳ Pending |
-| `16-breaking-down-the-stdenv-build-phases.md` | ⏳ Pending |
-| `19-deploying-nixos-systems.md` | ⏳ Pending |
 
 ---
 
 ## Last Updated
 
-January 18, 2026
+January 20, 2026
 
-## Session Context
+---
 
-- **Phase**: Verifying and fixing documentation commands
-- **Last action**: Updated AGENTS.md with comprehensive command table and GC notes
-- **Next step**: Review remaining pages (01-08, 10, 12-16, 19) for similar issues
+## What We Did
+
+1. Created `.gitignore` with OS files, editor directories, and Nix build artifacts excluded
+2. Fixed typos in capsule 02's "Next Capsule" section:
+   - "ephimeral" → "ephemeral"
+   - "envinronments" → "environments"
+   - Verified description accurately matches capsule 03 contents
+
+---
+
+## Pending Tasks
+
+1. Commit all refactored changes to main branch
+2. Verify all code examples in new capsules
+3. Add index.md with new table of contents
+4. Consider adding CI check for command verification
+5. Review outros in remaining capsules for accuracy
