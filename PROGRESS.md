@@ -166,12 +166,11 @@ January 20, 2026
 ## What We Did
 
 1. Created `.gitignore` with OS files, editor directories, and Nix build artifacts excluded
-2. Fixed typos in capsule 02's "Next Capsule" section:
-   - "ephimeral" → "ephemeral"
-   - "envinronments" → "environments"
+2. Fixed typos in capsule 02's "Next Capsule" section
 3. Committed refactored changes (30 files changed, restructured capsules)
-4. Updated README.md with new table of contents reflecting restructured sequence
-5. Fixed capsule 14 intro to correctly reference capsule 13 (package composition) instead of capsule 11
+4. Updated README.md with new table of contents
+5. Fixed capsule 14 intro to correctly reference capsule 13
+6. Refactored "Next Capsule" sections in capsules 03-19 to use blockquote links
 
 ---
 
@@ -179,4 +178,3 @@ January 20, 2026
 
 1. Verify all code examples in new capsules
 2. Consider adding CI check for command verification
-3. Push changes to remote
