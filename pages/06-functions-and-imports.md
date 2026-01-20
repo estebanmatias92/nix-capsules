@@ -1,4 +1,4 @@
-# Nix Capsules 5: Functions and Imports
+# Nix Capsules 6: Functions and Imports
 
 ## Introduction
 

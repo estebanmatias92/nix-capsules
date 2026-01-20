@@ -1,4 +1,4 @@
-# Nix Capsules 10: Developing with nix develop
+# Nix Capsules 11: Developing with nix develop
 
 ## Introduction
 

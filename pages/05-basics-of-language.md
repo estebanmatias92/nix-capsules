@@ -1,4 +1,4 @@
-# Nix Capsules 4: The Basics of the Language
+# Nix Capsules 5: The Basics of the Language
 
 ## Introduction
 

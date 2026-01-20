@@ -1,4 +1,4 @@
-# Nix Capsules 6: Our First Derivation
+# Nix Capsules 7: Our First Derivation
 
 ## Introduction
 

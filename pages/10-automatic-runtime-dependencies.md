@@ -1,4 +1,4 @@
-# Nix Capsules 9: Automatic Runtime Dependencies
+# Nix Capsules 10: Automatic Runtime Dependencies
 
 ## Introduction
 

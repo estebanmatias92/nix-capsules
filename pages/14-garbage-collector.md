@@ -1,4 +1,4 @@
-# Nix Capsules 11: The Garbage Collector
+# Nix Capsules 14: The Garbage Collector
 
 ## Introduction
 
