@@ -72,12 +72,23 @@ jobs:
           echo "Checking for broken internal links..."
           # Check that all referenced files exist
           for file in pages/*.md; do
+            # Get the directory of the current file (e.g., "pages")
+            dir=$(dirname "$file")
+            
             # Check Next Capsule links
+            # Extracts the path part of the Markdown link
             next=$(grep -oP '\]\(\./\d+-[^)]+\.md\)' "$file" | sed 's/[][]//g; s/^(\|)$//g')
+            
             if [ -n "$next" ]; then
               for link in $next; do
-                if [ ! -f "$link" ]; then
-                  echo "Broken link in $file: $link"
+                # Remove the leading "./" from the link to append cleanly
+                clean_link="${link#./}"
+                
+                # Construct the actual path to check
+                target_path="$dir/$clean_link"
+
+                if [ ! -f "$target_path" ]; then
+                  echo "Broken link in $file: $link (looked for $target_path)"
                   exit 1
                 fi
               done

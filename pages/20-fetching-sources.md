@@ -545,7 +545,7 @@ env | grep -i proxy
 
 ---
 
-## Congratulations
+## Congratulations!
 
 You've completed the Nix Capsules series. You now understand:
 
