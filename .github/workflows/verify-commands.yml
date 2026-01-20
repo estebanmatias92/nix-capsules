@@ -3,10 +3,10 @@ name: Verify Nix Commands
 on:
   push:
     paths:
-      - 'pages/*.md'
+      - "pages/*.md"
   pull_request:
     paths:
-      - 'pages/*.md'
+      - "pages/*.md"
 
 jobs:
   verify-commands:
@@ -41,7 +41,7 @@ jobs:
             "nix profile list --help"
             "nix profile wipe-history --help"
             "nix flake --help"
-            "nix-collect-garbage --help"
+            "nix-collect-garbage --delete-old --dry-run"
           )
 
           failed=0

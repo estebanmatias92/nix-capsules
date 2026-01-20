@@ -39,8 +39,8 @@ That's it! No builder script needed—stdenv handles everything.
 3. **configurePhase**: Runs `./configure` with flags
 4. **buildPhase**: Runs `make`
 5. **checkPhase**: Runs `make check` (can be disabled)
-6. **installPhase**: Runs `make install`
-7. **fixupPhase**: Strips binaries, patches RPATH
+6. **fixupPhase**: Strips binaries, patches RPATH
+7. **installPhase**: Runs `make install`
 
 ## Unpack Phase
 
