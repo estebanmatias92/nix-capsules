@@ -171,10 +171,14 @@ January 20, 2026
 4. Updated README.md with new table of contents
 5. Fixed capsule 14 intro to correctly reference capsule 13
 6. Refactored "Next Capsule" sections in capsules 03-19 to use blockquote links
+7. Verified all code examples in 10 new capsules (04, 08, 09, 12, 13, 15-20)
+8. Fixed `nix store ls` command usage in capsule 08
+9. Added legacy command notes to capsule 18
+10. Created CI workflow `.github/workflows/verify-commands.yml` for command verification
 
 ---
 
 ## Pending Tasks
 
-1. Verify all code examples in new capsules
-2. Consider adding CI check for command verification
+1. ~~Verify all code examples in new capsules~~ (COMPLETED)
+2. ~~Add CI check for command verification~~ (COMPLETED - .github/workflows/verify-commands.yml created)

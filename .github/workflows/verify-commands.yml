@@ -1,0 +1,104 @@
+name: Verify Nix Commands
+
+on:
+  push:
+    paths:
+      - 'pages/*.md'
+  pull_request:
+    paths:
+      - 'pages/*.md'
+
+jobs:
+  verify-commands:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Configure Nix
+        run: |
+          mkdir -p ~/.config/nix
+          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+
+      - name: Verify documented commands exist
+        run: |
+          set -e
+
+          echo "Checking if documented commands exist..."
+
+          # Core commands from AGENTS.md
+          commands=(
+            "nix profile add --help"
+            "nix profile upgrade --help"
+            "nix develop --help"
+            "nix build --help"
+            "nix eval --help"
+            "nix store gc --help"
+            "nix path-info --help"
+            "nix derivation show --help"
+            "nix profile list --help"
+            "nix profile wipe-history --help"
+            "nix flake --help"
+            "nix-collect-garbage --help"
+          )
+
+          failed=0
+          for cmd in "${commands[@]}"; do
+            if $cmd > /dev/null 2>&1; then
+              echo "✓ $cmd"
+            else
+              echo "✗ $cmd"
+              failed=1
+            fi
+          done
+
+          if [ $failed -eq 1 ]; then
+            echo "Some commands failed verification"
+            exit 1
+          fi
+
+      - name: Verify nix-hash command
+        run: |
+          echo "Testing nix-hash command..."
+          echo "test content" > /tmp/test-file.txt
+          nix-hash --type sha256 --base32 /tmp/test-file.txt
+          echo "✓ nix-hash works"
+
+      - name: Check for broken internal links
+        run: |
+          echo "Checking for broken internal links..."
+          # Check that all referenced files exist
+          for file in pages/*.md; do
+            # Check Next Capsule links
+            next=$(grep -oP '\]\(\./\d+-[^)]+\.md\)' "$file" | sed 's/[][]//g' | sed 's/)(//')
+            if [ -n "$next" ]; then
+              for link in $next; do
+                if [ ! -f "$link" ]; then
+                  echo "Broken link in $file: $link"
+                  exit 1
+                fi
+              done
+            fi
+          done
+          echo "✓ All internal links valid"
+
+      - name: Check for deprecated command usage
+        run: |
+          echo "Checking for deprecated command usage..."
+
+          # These commands should be marked as legacy in documentation
+          deprecated_patterns=(
+            'nix-store -q --references'  # Should note "(no direct modern equivalent)"
+            'nix store query'  # Should note "(no direct modern equivalent)"
+            'nix store list'  # Should note "(no direct modern equivalent)"
+          )
+
+          # This is a soft check - just warns
+          for pattern in "${deprecated_patterns[@]}"; do
+            if grep -rq "$pattern" pages/*.md; then
+              echo "⚠ Found $pattern - ensure it has legacy note"
+            fi
+          done
+          echo "✓ Deprecated pattern check complete"

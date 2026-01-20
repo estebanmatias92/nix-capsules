@@ -30,12 +30,12 @@ The path looks like:
 
 ### FOD Characteristics
 
-| Aspect | Behavior |
-| ------ | -------- |
-| Path computation | Based on declared `sha256` |
-| Build requirement | Downloaded content must match hash |
-| Reproducibility | Guaranteed (hash declared, not computed from download) |
-| Caching | Cached by hash |
+| Aspect            | Behavior                                               |
+| ----------------- | ------------------------------------------------------ |
+| Path computation  | Based on declared `sha256`                             |
+| Build requirement | Downloaded content must match hash                     |
+| Reproducibility   | Guaranteed (hash declared, not computed from download) |
+| Caching           | Cached by hash                                         |
 
 ### Verifying FODs
 
@@ -67,11 +67,11 @@ derivation {
 }
 ```
 
-| Aspect | IAD Behavior |
-| ------ | ------------ |
-| Path hash | Based on `.drv` file content |
-| Change trigger | Any input change |
-| Cache key | Derivation inputs |
+| Aspect         | IAD Behavior                 |
+| -------------- | ---------------------------- |
+| Path hash      | Based on `.drv` file content |
+| Change trigger | Any input change             |
+| Cache key      | Derivation inputs            |
 
 ### Content-Addressed Derivations (CAD)
 
@@ -94,21 +94,21 @@ Modern Nix supports true content-addressing:
 }
 ```
 
-| Aspect | CAD Behavior |
-| ------ | ------------ |
-| Path hash | Based on output **content** |
-| Change trigger | Output content change |
-| Cache key | Output hash |
-| Reproducibility | Guaranteed by content |
+| Aspect          | CAD Behavior                |
+| --------------- | --------------------------- |
+| Path hash       | Based on output **content** |
+| Change trigger  | Output content change       |
+| Cache key       | Output hash                 |
+| Reproducibility | Guaranteed by content       |
 
 ### Comparison
 
-| Feature | Input-Addressed | Content-Addressed |
-| ------- | --------------- | ----------------- |
-| Path depends on | Derivation inputs | Output content |
-| Two identical builds | Same path | Same path |
-| Rebuild on input change | Yes | No |
-| Supported since | Always | Nix 2.18+ |
+| Feature                 | Input-Addressed   | Content-Addressed |
+| ----------------------- | ----------------- | ----------------- |
+| Path depends on         | Derivation inputs | Output content    |
+| Two identical builds    | Same path         | Same path         |
+| Rebuild on input change | Yes               | No                |
+| Supported since         | Always            | Nix 2.18+         |
 
 ## Path Resolution
 
@@ -149,11 +149,11 @@ nixpkgs.legacyPackages.x86_64-linux.hello
 Nix maintains a SQLite database at `/nix/var/nix/db`:
 
 ```bash
-# Query database (legacy)
+# Query database (legacy command, no direct modern equivalent)
 nix-store -q --referrers /nix/store/*-hello*
 
-# Modern equivalent
-nix path-info --json /nix/store/*-hello* | jq
+# Modern equivalent using path-info
+nix path-info --json --json-format 1 /nix/store/*-hello* | jq
 ```
 
 ## The NAR Hash vs Store Path Hash
@@ -182,10 +182,10 @@ nix-hash --type sha256 --truncate --base32 ./hello
 
 ### Why Two Hashes?
 
-| Hash | Used For | Changes When |
-| ---- | -------- | ------------ |
-| NAR hash | Content verification | File contents change |
-| Path hash | Store path | NAR hash changes OR metadata changes |
+| Hash      | Used For             | Changes When                         |
+| --------- | -------------------- | ------------------------------------ |
+| NAR hash  | Content verification | File contents change                 |
+| Path hash | Store path           | NAR hash changes OR metadata changes |
 
 ## Build References
 
@@ -205,9 +205,7 @@ During builds, Nix tracks:
 
 ```json
 {
-  "inputSrcs": [
-    "/nix/store/...-hello-2.12.1.tar.gz"
-  ]
+  "inputSrcs": ["/nix/store/...-hello-2.12.1.tar.gz"]
 }
 ```
 
@@ -215,9 +213,7 @@ During builds, Nix tracks:
 
 ```json
 {
-  "references": [
-    "/nix/store/...-glibc-2.38"
-  ]
+  "references": ["/nix/store/...-glibc-2.38"]
 }
 ```
 
@@ -251,11 +247,11 @@ stdenv.mkDerivation {
 
 ### Output Specification Syntax
 
-| Syntax | Meaning |
-| ------ | ------- |
-| `outputs = ["out"];` | Single output named "out" |
-| `outputs = ["out" "doc"];` | Two outputs |
-| `outputs = ["dev" "out"];` | Order doesn't matter |
+| Syntax                     | Meaning                   |
+| -------------------------- | ------------------------- |
+| `outputs = ["out"];`       | Single output named "out" |
+| `outputs = ["out" "doc"];` | Two outputs               |
+| `outputs = ["dev" "out"];` | Order doesn't matter      |
 
 ### Using Multiple Outputs
 

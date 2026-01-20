@@ -287,17 +287,17 @@ This means:
 Use modern commands to explore paths:
 
 ```bash
-# List store contents
-nix store ls /nix/store | grep hello
+# List store contents (requires specific store path)
+nix store ls /nix/store/i3zw7h6pg3n9r5i63iyqxrapa70i4v5w-hello-2.12.2
 
-# Show path information
-nix path-info /nix/store/*-hello-*
+# Or use standard bash ls
+ls /nix/store | grep hello | head -5
 
-# Show references (runtime dependencies)
-nix path-info --json /nix/store/*-hello* | jq -r '.[].references[]'
+# Find a specific package
+ls /nix/store | grep hello
 
-# Show reverse references (what depends on this)
-nix path-info --json /nix/store/*-glibc* | jq -r '.[0].referrers[]'
+# Show full details
+ls -ld /nix/store/*-hello-*
 ```
 
 ## Why This Matters
