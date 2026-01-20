@@ -22,16 +22,16 @@ stdenv.mkDerivation {
 
 The path looks like:
 
-```
+```bash
 /nix/store/sha256-abcdef1234567890...-file.tar.gz
-#      └──────────────────┘
-#         Declared hash (not content hash)
+#          └────────────────────────┘
+#      Declared hash (not content hash)
 ```
 
 ### FOD Characteristics
 
 | Aspect | Behavior |
-|--------|----------|
+| ------ | -------- |
 | Path computation | Based on declared `sha256` |
 | Build requirement | Downloaded content must match hash |
 | Reproducibility | Guaranteed (hash declared, not computed from download) |
@@ -68,7 +68,7 @@ derivation {
 ```
 
 | Aspect | IAD Behavior |
-|--------|--------------|
+| ------ | ------------ |
 | Path hash | Based on `.drv` file content |
 | Change trigger | Any input change |
 | Cache key | Derivation inputs |
@@ -95,7 +95,7 @@ Modern Nix supports true content-addressing:
 ```
 
 | Aspect | CAD Behavior |
-|--------|--------------|
+| ------ | ------------ |
 | Path hash | Based on output **content** |
 | Change trigger | Output content change |
 | Cache key | Output hash |
@@ -104,7 +104,7 @@ Modern Nix supports true content-addressing:
 ### Comparison
 
 | Feature | Input-Addressed | Content-Addressed |
-|---------|----------------|-------------------|
+| ------- | --------------- | ----------------- |
 | Path depends on | Derivation inputs | Output content |
 | Two identical builds | Same path | Same path |
 | Rebuild on input change | Yes | No |
@@ -183,7 +183,7 @@ nix-hash --type sha256 --truncate --base32 ./hello
 ### Why Two Hashes?
 
 | Hash | Used For | Changes When |
-|------|----------|--------------|
+| ---- | -------- | ------------ |
 | NAR hash | Content verification | File contents change |
 | Path hash | Store path | NAR hash changes OR metadata changes |
 
@@ -252,7 +252,7 @@ stdenv.mkDerivation {
 ### Output Specification Syntax
 
 | Syntax | Meaning |
-|--------|---------|
+| ------ | ------- |
 | `outputs = ["out"];` | Single output named "out" |
 | `outputs = ["out" "doc"];` | Two outputs |
 | `outputs = ["dev" "out"];` | Order doesn't matter |
@@ -270,11 +270,13 @@ pkgs.hello      # Same as pkgs.hello.out
 ### Environment Variables
 
 For output "out":
+
 - `$out` → path to "out"
 - `$outBin` → $out/bin
 - `$outLib` → $out/lib
 
 For output "doc":
+
 - `$doc` → path to "doc"
 
 ### Separating Outputs
@@ -322,7 +324,7 @@ nix path-info --json /nix/store/...-mypackage | jq '.[].references'
 
 Nix stores metadata in `$out/nix-support/`:
 
-```
+```bash
 $nix-support/
 ├── propagated-build-inputs    # propagatedBuildInputs
 ├── setup-hook                 # setup hook script
@@ -412,5 +414,5 @@ nix why-depends .#package .#package
 In the next capsule, we'll explore **multiple outputs**—how to split packages into separate outputs for efficient storage and deployment.
 
 ```nix
-# Next: ./pages/19-multiple-outputs.md
+# Next: ./19-multiple-outputs.md
 ```

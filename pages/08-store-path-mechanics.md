@@ -19,7 +19,7 @@ Nix uses **NAR** (Nix ARchive) as its deterministic serialization format. NAR re
 
 ### NAR Structure
 
-```
+```bash
 (type) directory
 │
 ├── (type) regular file "hello.c" (contents)
@@ -46,7 +46,7 @@ Modern Nix uses NAR internally for content hashing.
 
 The store path hash goes through several steps:
 
-```
+```bash
 ┌─────────────┐
 │  Contents   │
 └──────┬──────┘
@@ -76,7 +76,7 @@ The store path hash goes through several steps:
 
 Nix uses a custom base-32 alphabet:
 
-```
+```bash
 0123456789abcdfghijklmnpqrsvwxyz
          ↑
          No: e, o, u, B, I, O, etc.
@@ -111,6 +111,7 @@ derivation {
 ```
 
 The path hash includes:
+
 - The `.drv` file content (builder, args, dependencies)
 - All input derivations (recursively)
 - System and architecture
@@ -132,6 +133,7 @@ stdenv.mkDerivation {
 ```
 
 The path depends on:
+
 - The declared `sha256` (not the actual download)
 - The derivation name
 
@@ -149,6 +151,7 @@ fetchurl {
 ```
 
 These are special because:
+
 - The output path is computed from the **declared hash**
 - Nix verifies the downloaded content matches the hash
 - Two identical sources always get the same path
@@ -156,6 +159,7 @@ These are special because:
 ### Why Fixed Outputs?
 
 Without fixed outputs, the path would change if:
+
 - The URL server modifies the file
 - The file is served with different timestamps
 - The server is unavailable during build
@@ -233,7 +237,7 @@ nix-hash --type sha256 --truncate --base32 input.txt
 
 Valid store path characters:
 
-```
+```nix
 Allowed:  a-z, 0-9, -, _, .
 Forbidden: A-Z, spaces, special chars
 ```
@@ -273,6 +277,7 @@ Modern Nix (2.18+) supports **content-addressable derivations** where outputs ar
 ```
 
 This means:
+
 - The path hash depends on **output content**, not inputs
 - If outputs are identical, paths are identical
 - Better caching and deduplication
@@ -300,7 +305,7 @@ nix path-info --json /nix/store/*-glibc* | jq -r '.[0].referrers[]'
 Understanding store path mechanics helps you:
 
 | Scenario | Understanding Helps |
-|----------|-------------------|
+| -------- | ------------------- |
 | Debugging build issues | Trace why paths change |
 | Binary caches | Understand cache keys |
 | Reproducibility | Know why same inputs = same outputs |
@@ -324,8 +329,8 @@ Built packages include derivation hash:
 
 ```bash
 /nix/store/3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x-hello-2.12.1/
-#                 └────────────────────────────────┘
-#                         Name + version
+#                                           └──────────┘
+#                                           Name + version
 ```
 
 ### Pattern 3: Fixed Outputs
@@ -334,8 +339,8 @@ Fetched sources use declared hash:
 
 ```bash
 /nix/store/sha256-abc123def456...-hello-2.12.1.tar.gz
-#      └──────────────┘
-#         Declared hash
+#                 └─────────────┘
+#                  Declared hash
 ```
 
 ## Summary
@@ -353,5 +358,5 @@ Fetched sources use declared hash:
 In the next capsule, we'll explore **stdenv**—the standard environment that provides build utilities and phases for most Nix packages.
 
 ```nix
-# Next: ./pages/09-building-with-stdenv.md
+# Next: ./09-building-with-stdenv.md
 ```

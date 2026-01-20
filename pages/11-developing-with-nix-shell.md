@@ -127,11 +127,11 @@ Now your shell automatically enters the Nix environment when you `cd` into the p
 
 ## Comparing with Traditional Approaches
 
-| Approach | Dependencies | Isolation | Reproducibility |
-|----------|-------------|-----------|-----------------|
-| System packages | Global | None | Low |
-| Docker | Container-level | High | Medium |
-| nix develop | Per-project | High | High |
+| Approach        | Dependencies    | Isolation | Reproducibility |
+| --------------- | --------------- | --------- | --------------- |
+| System packages | Global          | None      | Low             |
+| Docker          | Container-level | High      | Medium          |
+| nix develop     | Per-project     | High      | High            |
 
 `nix develop` provides system-level isolation without container overhead.
 
@@ -197,8 +197,8 @@ Configure your IDE to use the Nix environment:
 
 ## Next Capsule
 
-In the next capsule, we'll explore the **garbage collector**—how to clean up unused store paths and manage disk space in Nix.
+In the next capsule, we'll explore the **flake architecture**—how the flake system works.
 
 ```nix
-# Next: ./pages/14-garbage-collector.md
+# Next: ./12-flake-architecture.md
 ```

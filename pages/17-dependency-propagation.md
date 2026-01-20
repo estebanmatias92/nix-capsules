@@ -11,7 +11,7 @@ Understanding dependencies is crucial for packaging complex software that relies
 stdenv provides several dependency attributes:
 
 | Attribute | Purpose | Available During |
-|-----------|---------|------------------|
+| --------- | ------- | ---------------- |
 | `buildInputs` | Runtime dependencies | configure, build, install, fixup |
 | `nativeBuildInputs` | Build-time tools | configure, build, install |
 | `propagatedBuildInputs` | Inherited by dependents | configure, build, install |
@@ -33,6 +33,7 @@ stdenv.mkDerivation {
 ```
 
 These packages are:
+
 - Added to `$PATH` during build phases
 - Available during runtime of the built program
 - Automatically included in the runtime closure
@@ -243,12 +244,14 @@ nix develop .#mypackage --command env | grep -E '^(PATH|PKG_CONFIG|NIX_)'
 The dependency graph flows in two directions:
 
 **Build-time dependencies:**
-```
+
+```bash
 myapp → libfoo → bar
 ```
 
 **Runtime dependencies (closure):**
-```
+
+```bash
 myapp → libfoo → bar
    ↓
    └── bar (runtime)
@@ -268,5 +271,5 @@ myapp → libfoo → bar
 In the next capsule, we'll explore **store internals**—how Nix handles fixed-output derivations, content-addressable storage, and path resolution.
 
 ```nix
-# Next: ./pages/18-store-internals.md
+# Next: ./18-store-internals.md
 ```

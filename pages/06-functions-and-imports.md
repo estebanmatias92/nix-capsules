@@ -274,5 +274,5 @@ _Note: `legacyPackages.x86_64-linux` is Nix's term for the traditional nixpkgs p
 In the next capsule, we'll write our first **derivation**—Nix's fundamental building block for describing how to build software packages.
 
 ```nix
-# Next: ./pages/07-our-first-derivation.md
+# Next: ./07-our-first-derivation.md
 ```

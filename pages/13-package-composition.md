@@ -27,6 +27,7 @@ Nix follows a **single repository** pattern: all package definitions live in one
 Each package should declare its dependencies as inputs, rather than importing nixpkgs directly:
 
 **graphviz.nix:**
+
 ```nix
 { mkDerivation, gd, libpng, pkg-config }:
 
@@ -49,6 +50,7 @@ The package is a function that receives its dependencies as parameters.
 Combine packages in a top-level expression:
 
 **default.nix:**
+
 ```nix
 let
   nixpkgs = import <nixpkgs> { };
@@ -219,5 +221,5 @@ in with pkgs;
 In the next capsule, we'll explore **garbage collection**—how to clean up unused store paths and manage disk space in Nix.
 
 ```nix
-# Next: ./pages/14-garbage-collector.md
+# Next: ./14-garbage-collector.md
 ```

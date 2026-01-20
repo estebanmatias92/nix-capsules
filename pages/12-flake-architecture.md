@@ -5,6 +5,7 @@
 In the previous capsule, we covered garbage collection. Now we'll explore **flakes**—the modern standard for organizing Nix projects with a consistent, reproducible structure.
 
 Flakes provide a standardized way to:
+
 - Declare dependencies (inputs)
 - Expose outputs (packages, dev shells, etc.)
 - Lock versions for reproducibility
@@ -42,6 +43,7 @@ A flake is a Nix file (typically `flake.nix`) with two attributes:
 ```
 
 This flake:
+
 - Depends on nixpkgs from GitHub
 - Exposes one package: `hello` for x86_64-linux
 
@@ -62,7 +64,7 @@ inputs = {
 ### Input Types
 
 | Type | Example | When to Use |
-|------|---------|-------------|
+| ---- | ------- | ----------- |
 | GitHub | `github:NixOS/nixpkgs/nixos-unstable` | Standard packages |
 | Git | `git+https://example.com/repo?ref=main&rev=abc123` | Custom repositories |
 | Path | `path:/path/to/local/flake` | Local development |
@@ -103,14 +105,14 @@ outputs = { self, nixpkgs, flake-utils }: {
 ### Standard Output Types
 
 | Output Type | Purpose | Key Attributes |
-|-------------|---------|----------------|
+| ----------- | ------- | -------------- |
 | `packages` | Buildable packages | System-specific keys |
 | `devShells` | Development environments | `default` for default shell |
 | `apps` | Runnable applications | `type = "app"`, `program` |
 | `overlays` | Nixpkgs overlays | Applied to nixpkgs |
 | `nixosModules` | NixOS configuration | Module functions |
 | `homeModules` | Home Manager modules | Module functions |
-| `formatter` | Code formatter | ` packages.*.formatter` |
+| `formatter` | Code formatter | `packages.*.formatter` |
 
 ### Complete Example
 
@@ -464,5 +466,5 @@ nix eval --file flake.nix
 In the next capsule, we'll explore **package composition patterns**—how to organize multiple packages and their dependencies efficiently.
 
 ```nix
-# Next: ./pages/13-package-composition.md
+# Next: ./13-package-composition.md
 ```

@@ -9,6 +9,7 @@ Sometimes you want to create a package variant without rewriting the entire defi
 ## The Override Concept
 
 **Without override:**
+
 ```nix
 # Must reimport with different inputs
 graphvizNoX = import ./graphviz.nix {
@@ -18,6 +19,7 @@ graphvizNoX = import ./graphviz.nix {
 ```
 
 **With override:**
+
 ```nix
 # Start from the existing package and override
 graphvizNoX = graphviz.override { gdSupport = false; };
@@ -43,6 +45,7 @@ This wraps a function to return the result plus an `override` method.
 ## Usage Example
 
 **make-overridable.nix:**
+
 ```nix
 { mkDerivation, gdSupport ? true, gd ? null }:
 
@@ -132,7 +135,7 @@ The entire dependency graph updates to use the new `gd`.
 ## Override vs callPackage
 
 | Aspect | callPackage | override |
-|--------|-------------|----------|
+| ------ | ----------- | -------- |
 | When used | Initial composition | Post-creation modification |
 | Parameters | Function parameters | Derivation attributes |
 | Flexibility | Explicit arguments | Any overridable attribute |
@@ -223,5 +226,5 @@ gtk3.overrideOutputs (outputs: {
 In the next capsule, we'll explore **dependency propagation**—how packages pass dependencies to their dependents through buildInputs, nativeBuildInputs, and setup hooks.
 
 ```nix
-# Next: ./pages/17-dependency-propagation.md
+# Next: ./17-dependency-propagation.md
 ```

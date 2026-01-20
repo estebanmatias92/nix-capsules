@@ -5,6 +5,7 @@
 In the previous capsule, we explored store internals. Now we'll learn about **multiple outputs**—a powerful feature that lets you split a single derivation into multiple store paths.
 
 Multiple outputs are essential for:
+
 - Reducing closure sizes (install only what you need)
 - Organizing packages (binaries, docs, dev files separate)
 - Optimizing deployment (only deploy runtime files)
@@ -13,7 +14,7 @@ Multiple outputs are essential for:
 
 Consider a package like GTK:
 
-```
+```bash
 gtk/
 ├── bin/           # Runtime binaries
 ├── lib/           # Libraries (runtime)
@@ -55,7 +56,7 @@ stdenv.mkDerivation {
 ### Output Names
 
 | Name | Convention | Contents |
-|------|------------|----------|
+| ---- | ---------- | -------- |
 | `out` | Always present | Main package |
 | `bin` | Optional | Executables (added to PATH) |
 | `lib` | Optional | Libraries |
@@ -408,5 +409,5 @@ buildInputs = [
 In the final capsule, we'll explore **fetching sources**—how to download and verify sources using fetchurl, fetchFromGitHub, and other fetch helpers.
 
 ```nix
-# Next: ./pages/20-fetching-sources.md
+# Next: ./20-fetching-sources.md
 ```

@@ -9,6 +9,7 @@ In the previous capsule, we explored store path mechanics. Now we'll explore **s
 ## What is stdenv?
 
 `stdenv` is a Nix derivation that provides:
+
 - A shell environment for builds
 - Standard build phases (unpack, configure, build, install)
 - Common build tools (make, gcc, shell)
@@ -44,6 +45,7 @@ That's it! No builder script needed—stdenv handles everything.
 ## Unpack Phase
 
 Automatically handles:
+
 - `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.zip`, etc.
 - Single directory extraction
 - Sets `$src` to unpacked directory
@@ -60,6 +62,7 @@ unpackPhase = ''
 ## Configure Phase
 
 Runs `./configure` with:
+
 - `--prefix=$out` for installation destination
 - `--build` and `--host` from `$stdenv`
 - Additional flags from `configureFlags`
@@ -74,6 +77,7 @@ configureFlags = [
 ## Build Phase
 
 Runs `make` with:
+
 - `$makeFlags` if specified
 - Parallelization from `$NIX_BUILD_CORES`
 
@@ -112,6 +116,7 @@ installPhase = ''
 ## Fixup Phase
 
 Automatically:
+
 - Strips binaries (`strip`)
 - Patches RPATH with `patchelf`
 - Patches shebangs in scripts
@@ -132,6 +137,7 @@ source $stdenv/setup
 ```
 
 This sets:
+
 - `PATH` with build tools
 - Environment variables (`$out`, `$src`, `$CC`, etc.)
 - Helper functions (`configure`, `build`, `install`)
@@ -223,5 +229,5 @@ stdenv.mkDerivation {
 In the next capsule, we'll explore **runtime dependencies**—how Nix automatically discovers what libraries and files your built program needs to run.
 
 ```nix
-# Next: ./pages/10-automatic-runtime-dependencies.md
+# Next: ./10-automatic-runtime-dependencies.md
 ```

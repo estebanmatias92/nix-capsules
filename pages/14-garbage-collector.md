@@ -9,6 +9,7 @@ Everything in Nix goes to `/nix/store`. Over time, this can grow large. The garb
 ## How Garbage Collection Works
 
 Nix uses **GC roots** to determine what's still needed. A path is a GC root if:
+
 - It's a user environment (`nix profile` generations)
 - It's been explicitly added as a GC root
 - It's referenced by another GC root
@@ -53,6 +54,7 @@ nix-collect-garbage --delete-old --dry-run
 ```
 
 The `nix-collect-garbage` command is a wrapper that:
+
 1. Removes old profile generations
 2. Runs garbage collection to delete unreferenced paths
 
@@ -197,6 +199,7 @@ nix store delete --recursive s3://my-bucket/*
 ## Reproducibility Considerations
 
 Be careful when deleting:
+
 - **Don't delete** paths you're actively developing
 - **Do delete** old package versions you're no longer using
 - **Use** `nix-collect-garbage --delete-old` for effective cleanup
@@ -217,5 +220,5 @@ For reproducible systems, keep multiple generations for rollback capability.
 In the next capsule, we'll dive deep into **nixpkgs**—the central package collection that provides thousands of packages and utilities for Nix.
 
 ```nix
-# Next: ./pages/15-nixpkgs-deep-dive.md
+# Next: ./15-nixpkgs-deep-dive.md
 ```

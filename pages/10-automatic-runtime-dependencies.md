@@ -21,6 +21,7 @@ nix path-info --json /nix/store/...-hello | jq -r '.[].references[]'
 ```
 
 This shows all store paths the output references. For a typical program, you'll see:
+
 - `glibc` - The C library
 - `gcc-libs` - GCC runtime libraries
 - Other shared libraries the program links against
@@ -52,7 +53,8 @@ nix path-info --json ./result | jq -r '.[].references[]'
 ```
 
 The output shows dependencies like:
-```
+
+```bash
 /nix/store/...-glibc-2.38
 /nix/store/...-gcc-13.2.0-lib
 ```
@@ -68,6 +70,7 @@ patchelf --print-rpath ./result/bin/hello
 In traditional systems, RPATH points to `/usr/lib`. In Nix, it should point to the specific library paths in the store.
 
 Nix automatically handles this through:
+
 1. **patchelf**: Rewrites RPATH to use store paths
 2. **stdenv**: Automatically runs patchelf on ELF binaries
 
@@ -94,6 +97,7 @@ strip ./result/bin/hello
 ## Automatic Dependency Collection
 
 Nix scans built executables for:
+
 - Shared library references (`.so` files)
 - Script shebangs pointing to store paths
 - Hardcoded paths to other store locations
@@ -163,5 +167,5 @@ You'll see `gd`, `libpng`, `fontconfig`, and their transitive dependencies—all
 In the next capsule, we'll use `nix develop` to create isolated development environments—perfect for hacking on projects without polluting your system.
 
 ```nix
-# Next: ./pages/11-developing-with-nix-shell.md
+# Next: ./11-developing-with-nix-shell.md
 ```

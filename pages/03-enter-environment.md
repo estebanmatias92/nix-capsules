@@ -120,5 +120,5 @@ This reliability means you can upgrade packages without fear. If the new version
 In the next capsule, we will dive into the **Nix Store** mechanics, understanding exactly how paths are computed and what goes into that hash.
 
 ```nix
-# Next: ./pages/04-the-nix-store.md
+# Next: ./04-the-nix-store.md
 ```

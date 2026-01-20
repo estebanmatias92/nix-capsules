@@ -9,6 +9,7 @@ Understanding how to fetch sources is essential for creating reproducible packag
 ## The Fetching Problem
 
 When packaging software, you need to:
+
 1. Download source code from the internet
 2. Verify the download hasn't been tampered with
 3. Ensure reproducibility (same URL = same content = same path)
@@ -33,7 +34,7 @@ stdenv.mkDerivation {
 ### Required Attributes
 
 | Attribute | Purpose |
-|-----------|---------|
+| --------- | ------- |
 | `url` | URL to download |
 | `sha256` | Expected SHA-256 hash (base32-encoded) |
 
@@ -90,7 +91,7 @@ fetchFromGitHub {
 ### Attributes
 
 | Attribute | Purpose |
-|-----------|---------|
+| --------- | ------- |
 | `owner` | Repository owner |
 | `repo` | Repository name |
 | `rev` | Git commit SHA or tag |
@@ -207,7 +208,7 @@ sha256 = "sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
 If you get the hash format wrong:
 
-```
+```bash
 hash mismatch in downloaded file
 ```
 
@@ -234,11 +235,12 @@ fetchurl {
 ### URL vs Hash
 
 | What | Determines Path |
-|------|-----------------|
+| ---- | --------------- |
 | Input-addressed | URL, builder, all inputs |
 | Fixed-output | Only the declared `sha256` |
 
 This means:
+
 - URL can go offline → path still valid (cached)
 - Content must match hash → tampering detected
 
@@ -490,7 +492,7 @@ stdenv.mkDerivation {
 
 ### Hash Mismatch
 
-```
+```bash
 hash mismatch in downloaded file
 ```
 
@@ -508,11 +510,12 @@ nix hash-file --base32 file.tar.gz
 
 ### URL 404
 
-```
+```bash
 404 Not Found
 ```
 
 Check:
+
 ```bash
 # Verify URL works
 curl -I https://example.com/file.tar.gz
@@ -558,6 +561,7 @@ You've completed the Nix Capsules series. You now understand:
 - Fetching sources with proper verification
 
 With this foundation, you're ready to:
+
 - Create your own Nix packages
 - Use flakes for project management
 - Understand and modify nixpkgs

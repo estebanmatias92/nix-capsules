@@ -9,6 +9,7 @@ Understanding nixpkgs parameters and customization is essential for creating you
 ## What is Nixpkgs?
 
 Nixpkgs is:
+
 - A **collection** of over 80,000 Nix packages
 - A **function** that creates a package set for a specific system
 - **The default source** for most Nix packages
@@ -36,7 +37,7 @@ import <nixpkgs> {
 ### Parameters
 
 | Parameter | Type | Default | Purpose |
-|-----------|------|---------|---------|
+| --------- | ---- | ------- | ------- |
 | `system` | string | `builtins.currentSystem` | Target platform |
 | `config` | attrset | `{}` | Package configuration |
 | `overlays` | list | `[]` | Modifications to apply |
@@ -91,7 +92,7 @@ pkgs = import <nixpkgs> {
 ### Common Config Options
 
 | Option | Type | Purpose |
-|--------|------|---------|
+| ------ | ---- | ------- |
 | `allowUnfree` | bool | Build packages with restrictive licenses |
 | `allowBroken` | bool | Build packages marked as broken |
 | `permittedInsecurePackages` | list | Allow specific insecure versions |
@@ -129,6 +130,7 @@ final: prev: {
 ```
 
 Where:
+
 - `prev`: Package set before this overlay
 - `final`: Package set after all overlays (including this one)
 
@@ -360,7 +362,7 @@ pkgs.lib.flatten [ [1] [2 3] ]   # Flatten lists
 ### Common lib Functions
 
 | Function | Purpose |
-|----------|---------|
+| -------- | ------- |
 | `lib.attrNames` | List attribute names |
 | `lib.map` | Apply function to list |
 | `lib.filter` | Filter list |
@@ -434,5 +436,5 @@ pkgs = import <nixpkgs> {
 In the next capsule, we'll explore **advanced override patterns**—how to use `makeOverridable`, chain overrides, and understand the fixed-point pattern.
 
 ```nix
-# Next: ./pages/16-advanced-overrides.md
+# Next: ./16-advanced-overrides.md
 ```
