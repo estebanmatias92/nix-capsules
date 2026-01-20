@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Welcome to the eleventh Nix capsule. In the previous capsule, we created development environments with `nix develop`. Now we'll explore the **garbage collector**—Nix's mechanism for removing unused store paths and reclaiming disk space.
+Welcome to the eleventh Nix capsule. In the previous capsule, we explored package composition patterns. Now we'll explore the **garbage collector**—Nix's mechanism for removing unused store paths and reclaiming disk space.
 
 Everything in Nix goes to `/nix/store`. Over time, this can grow large. The garbage collector identifies and removes paths that are no longer needed.
 
