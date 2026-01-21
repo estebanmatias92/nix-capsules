@@ -316,7 +316,84 @@ The classic Nix tutorial series. Some content is outdated (pre-flakes) but still
 - [Shopify Engineering - What is Nix?](https://shopify.engineering/what-is-nix)
 - [Nix Pills - Our first derivation](https://nixos.org/guides/nix-pills/our-first-derivation)
 
-## Best Practices
+## Software Engineering Practices
+
+This project follows software engineering best practices to ensure maintainability, readability, and reliability.
+
+### Core Principles
+
+| Practice | Application to This Project |
+|----------|----------------------------|
+| **Modularity** | CI scripts are split into dedicated files under `.github/scripts/` |
+| **DRY (Don't Repeat Yourself)** | Shared logic extracted to `utils.sh`; repeated patterns use functions |
+| **Single Responsibility** | Each script does one thing (check links / verify commands / check deprecations) |
+| **Separation of Concerns** | Workflows orchestrate; scripts execute; config defines parameters |
+| **KISS (Keep It Simple, Stupid)** | Avoid over-engineering; prefer clear, simple solutions |
+
+### Architecture
+
+```
+.github/
+├── workflows/
+│   └── verify-commands.yml    # Orchestration only
+├── scripts/
+│   ├── check-links.sh         # Validates internal links
+│   ├── check-commands.sh      # Verifies nix commands exist
+│   ├── check-deprecated.sh    # Flags legacy command usage
+│   ├── check-nix-hash.sh      # Tests nix-hash command
+│   └── utils.sh               # Shared functions (POSIX-compliant)
+└── .pre-commit-config.yaml    # Pre-commit hooks configuration
+```
+
+### Script Guidelines
+
+All scripts in `.github/scripts/` must follow these rules:
+
+1. **POSIX-compliant**: Use `/bin/sh` (not bash-specific features)
+2. **Shellcheck pass**: Run `shellcheck` before committing
+3. **Exit codes**: Return 0 on success, non-zero on failure
+4. **Error handling**: Use `set -e` for fail-fast behavior
+5. **Logging**: Use `log_info`, `log_success`, `log_error`, `log_warn` from `utils.sh`
+6. **No hardcoded paths**: Use `$(dirname "$0")` for script-relative paths
+
+### Pre-commit Hooks
+
+The project uses pre-commit for local validation:
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install hooks
+pre-commit install
+
+# Run manually
+pre-commit run --all-files
+```
+
+**Available hooks:**
+- `check-links`: Validates internal markdown links
+- `shellcheck`: Lints all shell scripts
+
+### Version Control
+
+- **Conventional Commits**: Use `feat:`, `fix:`, `docs:`, `chore:` prefixes
+- **Small, Focused PRs**: One logical change per PR
+- **Branch Protection**: Require PR reviews before merging to main
+
+### Code Quality
+
+- **Shell scripts**: Pass `shellcheck` validation
+- **Error messages**: Clear, actionable, and consistent
+- **Comments**: Explain "why", not "what"
+
+1. **Modern Nix First**: Teach flakes and unified CLI as the only way. Legacy commands are documented only when necessary (e.g., `nix-collect-garbage`).
+2. **Progressive Disclosure**: Start simple, add complexity gradually
+3. **Verify Code Examples**: Test all Nix code snippets before committing
+4. **Consistent Terminology**: Use same terms throughout
+5. **Concept Transferability**: Focus on mental models that apply across all Nix usage (store mechanics, derivation evaluation, overlay composition)
+
+## Documentation Best Practices
 
 1. **Modern Nix First**: Teach flakes and unified CLI as the only way. Legacy commands are documented only when necessary (e.g., `nix-collect-garbage`).
 2. **Progressive Disclosure**: Start simple, add complexity gradually

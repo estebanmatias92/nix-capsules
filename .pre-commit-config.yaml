@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-links
+        name: Check internal links
+        entry: .github/scripts/check-links.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^pages/
+
+      - id: shellcheck
+        name: Lint shell scripts
+        entry: shellcheck
+        language: system
+        pass_filenames: false
+        files: ^\.github/scripts/
+        stages: [pre-commit]
