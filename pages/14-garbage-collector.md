@@ -219,4 +219,4 @@ For reproducible systems, keep multiple generations for rollback capability.
 
 In the next capsule, we'll dive deep into **nixpkgs**—the central package collection that provides thousands of packages and utilities for Nix.
 
-> [**Nix Capsules 15: Nixpkgs Deep Dive**](./15-nixpkgs-deep-dive.md)
+> **[Nix Capsules 15: Nixpkgs Deep Dive](./15-nixpkgs-deep-dive.md)**

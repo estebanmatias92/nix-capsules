@@ -52,7 +52,7 @@ This documentation teaches **modern Nix only** (Nix 3.x with flakes enabled):
 | `nix-shell`                           | `nix develop` or `nix shell`                                     | Use unified CLI                           |
 | `nix-build`                           | `nix build`                                                      | Use unified CLI                           |
 | `nix-instantiate`                     | `nix eval`                                                       | Use unified CLI                           |
-| `nix-store -q --references`           | `nix path-info --json <path> \| jq -r '.[].references[]'`        | No direct `nix store query`               |
+| `nix-store -q --references`           | `nix path-info --json --json-format 1 <path> \| jq -r '.[].references[]'`        | No direct `nix store query`               |
 | `nix-store --gc`                      | `nix store gc`                                                   | Basic GC only                             |
 | `nix-store --gc --list-roots`         | (no direct modern equivalent)                                    | Legacy only                               |
 | `nix-store --gc --delete-generations` | `nix-collect-garbage --delete-old` or `nix profile wipe-history` | Use wrapper command                       |

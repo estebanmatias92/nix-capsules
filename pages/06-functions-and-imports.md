@@ -2,275 +2,202 @@
 
 ## Introduction
 
-Welcome to the fifth Nix capsule. In the previous capsule, we explored the Nix expression language's basic types and values. Now we introduce **functions** and **imports**—the building blocks for creating reusable, composable Nix code.
+Welcome to the sixth Nix capsule. We have covered basic types. Now we introduce the engine of Nix: **Functions** and **Imports**.
 
-Functions enable abstraction in Nix, allowing you to write generic logic once and parameterize it for different use cases. Imports allow you to split your code across multiple files, organizing complex projects into manageable modules.
+These are the building blocks of reusability. In fact, as you will see by the end of this capsule, a **Flake** is nothing more than a giant function that takes `inputs` and returns `outputs`.
 
-## Anonymous Functions
+## Anonymous Functions (Lambdas)
 
-Nix functions are anonymous (lambdas) with a single parameter. The syntax is minimal: specify the parameter name, a colon, then the function body.
+In Nix, all functions are anonymous (often called **lambdas**). A function is defined by a single argument, a colon `:`, and the body.
 
 ```nix
-nix-repl> (x: x * 2)
+nix-repl> x: x * 2
 «lambda»
+```
 
+To use it, you apply an argument (no parentheses needed):
+
+```nix
 nix-repl> (x: x * 2) 5
 10
 ```
 
-This function takes a parameter `x` and returns `x * 2`. Functions are values—you can store them in variables.
+You can give it a name by assigning it to a variable:
 
 ```nix
 nix-repl> double = x: x * 2
-nix-repl> double
-«lambda»
 
-nix-repl> double 7
-14
+nix-repl> double 10
+20
 ```
 
-Call a function by writing the function name followed by a space and the argument. No parentheses required for simple calls.
+## Multiple Parameters (Currying)
 
-## Multiple Parameters via Currying
-
-Nix functions accept only one parameter, but you achieve multiple parameters through **currying**—functions that return other functions.
+Technically, a Nix function only accepts **one** argument. To handle multiple arguments, we use a technique called **Currying**: a function returns _another function_.
 
 ```nix
+# "mul" takes "a", and returns a function that takes "b"
 nix-repl> mul = a: b: a * b
-nix-repl> mul
-«lambda»
 
-nix-repl> mul 3
-«lambda»
-
-nix-repl> (mul 3) 4
-12
-
+# Calling it passes arguments sequentially
 nix-repl> mul 3 4
 12
 ```
 
-The expression `a: b: a * b` creates a function that takes `a` and returns another function taking `b`. This enables partial application:
+This allows **Partial Application** (baking in the first argument):
 
 ```nix
 nix-repl> triple = mul 3
-nix-repl> triple 4
-12
 
 nix-repl> triple 10
 30
 ```
 
-Store `mul 3` as `triple`, then reuse it with different second arguments.
+## Argument Sets (Pattern Matching)
 
-## Argument Sets with Pattern Matching
-
-A powerful Nix feature: pattern matching against attribute sets in function parameters.
+This is the most common pattern in NixOS configuration and Flakes. Instead of passing arguments one by one (`a: b:`), we pass a **single Attribute Set** and extract what we need inside the function.
 
 ```nix
-nix-repl> mul = s: s.a * s.b
-nix-repl> mul { a = 3; b = 4; }
+nix-repl> add = { a, b }: a + b
+
+nix-repl> add { a = 10; b = 2; }
 12
 ```
 
-Access attributes directly from the set parameter. Even cleaner with destructuring:
+### Exact Matching
+
+By default, Nix is strict. If you pass extra args, it crashes.
 
 ```nix
-nix-repl> mul = { a, b }: a * b
-nix-repl> mul { a = 3; b = 4; }
+nix-repl> add { a = 10; b = 2; c = 5; }
+error: function 'anonymous lambda' called with unexpected argument 'c'
+```
+
+### The Ellipsis (`...`)
+
+To allow extra arguments (common in module systems), add `...`:
+
+```nix
+nix-repl> add = { a, b, ... }: a + b
+
+nix-repl> add { a = 10; b = 2; c = 99; }
 12
 ```
 
-The parameter `{ a, b }` requires the passed set to contain exactly those keys.
+### Default Values (`?`)
+
+You can make arguments optional:
 
 ```nix
-nix-repl> mul { a = 3; b = 4; c = 5; }
-error:
-       ...
-       error: function 'anonymous lambda' called with unexpected argument 'c'
-       ...
+nix-repl> greet = { name ? "World" }: "Hello " + name
 
-nix-repl> mul { a = 3; }
-error:
-       ...
-       error: function 'anonymous lambda' called without required argument 'b'
-       ...
+nix-repl> greet { }
+"Hello World"
+
+nix-repl> greet { name = "Nix"; }
+"Hello Nix"
 ```
-
-Nix enforces exact attribute matching—extra or missing attributes cause errors.
-
-## Default Values and Variadic Parameters
-
-Provide default values for optional parameters:
-
-```nix
-nix-repl> mul = { a, b ? 2 }: a * b
-nix-repl> mul { a = 3; }
-6
-
-nix-repl> mul { a = 3; b = 4; }
-12
-```
-
-Allow additional attributes with `...`:
-
-```nix
-nix-repl> mul = { a, b, ... }: a * b
-nix-repl> mul { a = 3; b = 4; extra = 10; }
-12
-```
-
-Access the entire parameter set using the `@` pattern:
-
-```nix
-nix-repl> mul = s@{ a, b, ... }: a * b * s.extra
-nix-repl> mul { a = 3; b = 4; extra = 5; }
-60
-```
-
-_Note: Nix only supports default argument (?) values when **destructuring attribute sets**._
 
 ## Imports
 
-The `import` builtin loads a `.nix` file and evaluates it as an expression. Create three files:
+The `import` keyword loads another `.nix` file and evaluates it.
 
-**a.nix:**
-
-```nix
-3
-```
-
-**b.nix:**
+**math.nix:**
 
 ```nix
-4
+# This file returns a function
+{ a, b }: a + b
 ```
 
-**mul.nix:**
+**repl:**
 
 ```nix
-a: b: a * b
+nix-repl> myFunc = import ./math.nix
+
+nix-repl> myFunc { a = 10; b = 20; }
+30
 ```
 
-Load and use them:
+**Crucial Concept:** Variables don't "leak" between files. If you need a value from File A inside File B, you must **pass it as an argument**.
+
+## The Flake Connection
+
+Now, look at the `flake.nix` structure we'll be using in the next capsules.
 
 ```nix
-nix-repl> a = import ./a.nix
-nix-repl> b = import ./b.nix
-nix-repl> mul = import ./mul.nix
-nix-repl> mul a b
-12
+{
+  inputs = { ... };
+
+  # LOOK HERE: It's a function with Pattern Matching!
+  outputs = { self, nixpkgs }: {
+     # ...
+  };
+}
 ```
 
-The imported file's scope is isolated—it doesn't inherit the caller's variables.
+The `outputs` section is just a **Function**.
 
-**test.nix:**
+1. It takes an attribute set `{ self, nixpkgs }` as its argument.
+2. It uses **Pattern Matching** to grab `nixpkgs` from the inputs.
+3. It returns an attribute set containing `packages`, `devShells`, etc.
 
-```nix
-x
-```
+This is why understanding functions is critical: **The entire Flake ecosystem is built on passing inputs to functions.**
 
-```nix
-nix-repl> let x = 5; in import ./test.nix
-error:
-       ...
-       error: undefined variable 'x' at /home/user/test.nix:1:1:
-       ...
-```
+## Practical Example: A Function-Based Flake
 
-The imported `test.nix` has no access to `x` from the caller's `let` binding.
-
-## Passing Data via Functions
-
-The solution is to have imported files return functions that accept parameters:
-
-**test.nix:**
-
-```nix
-{ a, b ? 3, message ? "default" }:
-if a > b then "${message}: yes" else "${message}: no"
-```
-
-```nix
-nix-repl> :r      # Reload imported files again after the changes
-nix-repl> import ./test.nix { a = 5; message = "result"; }
-"result: yes"
-```
-
-_Note: You must log back into the REPL and import `test.nix` again, or use the `:r` command to reload the imported files.._
-
-## Debugging with builtins.trace
-
-Nix includes a built-in `trace` function for debugging. It prints a message during evaluation and returns the second argument:
-
-**test.nix:**
-
-```nix
-{ a, b ? 3, trueMsg ? "yes", falseMsg ? "no" }:
-if a > b
-  then builtins.trace trueMsg true
-  else builtins.trace falseMsg false
-```
-
-```nix
-nix-repl> import ./test.nix { a = 5; trueMsg = "ok"; }
-trace: ok
-true
-```
-
-Key points:
-
-- Multiple default parameters (`b ? 3`, `trueMsg ? "yes"`, `falseMsg ? "no"`)
-- `builtins.trace(message, value)` prints the message and returns `value`
-- **Lazy evaluation**: the trace only prints when the expression is evaluated
-
-## Flakes: A Modern Alternative to Manual Imports
-
-Flakes provide a standardized, reproducible way to organize Nix projects. Unlike manual imports, flakes use an `inputs`/`outputs` model where:
-
-- **inputs** declare dependencies (other flakes, like nixpkgs)
-- **outputs** expose packages, dev shells, and other artifacts
-
-This approach is the modern standard for Nix projects, replacing ad-hoc file composition with a consistent structure.
+Let's refactor our standard Flake to verify we understand exactly how data flows.
 
 **flake.nix:**
 
 ```nix
 {
-  description = "My Nix project";
+  description = "Functions Demo";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
   };
 
-  outputs = { self, nixpkgs }: {
-    packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.hello;
+  # The Function Definition
+  outputs = { self, nixpkgs }:
+  let
+    system = "x86_64-linux";
+    # We use the argument 'nixpkgs' to get our packages
+    pkgs = nixpkgs.legacyPackages.${system};
 
-    devShells.x86_64-linux.default = nixpkgs.mkShell {
-      buildInputs = [ nixpkgs.legacyPackages.x86_64-linux.hello ];
+    # A local helper function
+    sayHello = name: pkgs.writeShellScriptBin "greet" ''
+      echo "Hello, ${name}!"
+    '';
+  in
+  {
+    packages.${system} = {
+      # We call our helper function
+      default = sayHello "Student";
+      custom  = sayHello "Advanced User";
     };
   };
 }
 ```
 
-- Use `nix build` to build packages defined in `packages`
-- Use `nix develop` to enter the development shell
+Run it:
 
-_Note: `legacyPackages.x86_64-linux` is Nix's term for the traditional nixpkgs package collection. We'll explore how packages (derivations) are built in the next capsule._
+```bash
+nix run .#default
+# Output: Hello, Student!
+
+nix run .#custom
+# Output: Hello, Advanced User!
+```
 
 ## Summary
 
-- Nix functions are anonymous and single-parameter; multiple parameters use currying
-- Argument sets with pattern matching provide named, unordered parameters
-- Default values and `...` enable optional and variadic parameters
-- `import` loads external Nix files with isolated scope—no caller variables accessible
-- Pass data to imported modules by having them return functions with parameters
-- `builtins.trace(message, value)` enables debugging by printing during lazy evaluation
-- Flakes provide a standardized `inputs`/`outputs` structure for project modularity
-- Use `nix build` for packages and `nix develop` for development shells
+1. **Functions** are usually anonymous: `x: x + 1`.
+2. **Sets** are the standard argument type: `{ pkgs, ... }: ...`.
+3. **Imports** load files; passing data requires functions.
+4. **Flakes** are just functions that take `inputs` and return `outputs`.
 
 ## Next Capsule
 
-In the next capsule, we'll write our first **derivation**—Nix's fundamental building block for describing how to build software packages.
+Now that we understand the language, we are ready to build software. We will learn about the **Derivation**—the low-level instruction that tells Nix how to build a package.
 
-> [**Nix Capsules 7: Our First Derivation**](./07-our-first-derivation.md)
+> **[Nix Capsules 7: Our First Derivation](./07-our-first-derivation.md)**

@@ -159,7 +159,7 @@ nix.dev reference.
 
 ## Last Updated
 
-January 20, 2026
+January 23, 2026
 
 ---
 
@@ -175,6 +175,45 @@ January 20, 2026
 8. Fixed `nix store ls` command usage in capsule 08
 9. Added legacy command notes to capsule 18
 10. Created CI workflow `.github/workflows/verify-commands.yml` for command verification
+11. Modularized CI/CD scripts under `.github/scripts/` (5 POSIX-compliant scripts: utils.sh, check-links.sh, check-commands.sh, check-deprecated.sh, check-nix-hash.sh)
+12. Refactored `verify-commands.yml` to call external scripts instead of inline commands
+13. Added `.pre-commit-config.yaml` for local validation (check-links and shellcheck hooks)
+14. Added "Software Engineering Practices" section to AGENTS.md (Modularity, DRY, Single Responsibility, Separation of Concerns, KISS)
+15. Fixed link validation script bugs (sed regex for bracket stripping, while loop variable scoping)
+16. All scripts tested and working - verified internal links, command checks, deprecated pattern detection, and nix-hash
+17. Updated all derivation JSON output examples to v4 schema:
+    - `pages/08-store-path-mechanics.md`: Full derivation JSON (v1→v4)
+    - `pages/18-store-internals.md`: 3 partial snippets updated (inputDrvs, inputSrcs, references)
+
+---
+
+## Software Engineering Practices Applied
+
+### CI/CD Architecture
+
+```
+.github/
+├── scripts/                          # Modularized scripts
+│   ├── utils.sh                      # Shared POSIX functions (log_info, log_success, log_error, die)
+│   ├── check-links.sh                # Validates internal markdown links
+│   ├── check-commands.sh             # Verifies documented nix commands exist
+│   ├── check-deprecated.sh           # Warns about legacy command usage
+│   └── check-nix-hash.sh             # Tests nix-hash functionality
+├── workflows/
+│   └── verify-commands.yml           # Orchestration only (calls scripts)
+└── .pre-commit-config.yaml           # Pre-commit hooks for local validation
+```
+
+### Principles Followed
+
+| Practice | Implementation |
+|----------|----------------|
+| **Modularity** | 5 dedicated scripts, each with single responsibility |
+| **DRY** | Shared logging/error functions in `utils.sh` |
+| **POSIX-compliant** | All scripts use `/bin/sh` syntax |
+| **Separation of Concerns** | Workflows orchestrate; scripts execute |
+| **Single Responsibility** | Each script does one thing |
+| **KISS** | Simple, readable, maintainable scripts |
 
 ---
 
@@ -182,3 +221,5 @@ January 20, 2026
 
 1. ~~Verify all code examples in new capsules~~ (COMPLETED)
 2. ~~Add CI check for command verification~~ (COMPLETED - .github/workflows/verify-commands.yml created)
+3. ~~Modularize CI/CD scripts~~ (COMPLETED - all scripts created and committed)
+4. Commit minor fix to `pages/20-fetching-sources.md` (removed "!" from "Congratulations!" header)

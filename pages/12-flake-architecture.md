@@ -465,4 +465,4 @@ nix eval --file flake.nix
 
 In the next capsule, we'll explore **package composition patterns**—how to organize multiple packages and their dependencies efficiently.
 
-> [**Nix Capsules 13: Package Composition**](./13-package-composition.md)
+> **[Nix Capsules 13: Package Composition](./13-package-composition.md)**

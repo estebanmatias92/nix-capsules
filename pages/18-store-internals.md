@@ -195,8 +195,10 @@ During builds, Nix tracks:
 
 ```json
 {
-  "inputDrvs": {
-    "/nix/store/...-gcc-13.2.0.drv": ["out"]
+  "inputs": {
+    "drvs": {
+      "...-gcc-13.2.0.drv": {"dynamicOutputs": {}, "outputs": ["out"]}
+    }
   }
 }
 ```
@@ -205,7 +207,9 @@ During builds, Nix tracks:
 
 ```json
 {
-  "inputSrcs": ["/nix/store/...-hello-2.12.1.tar.gz"]
+  "inputs": {
+    "srcs": ["...-hello-2.12.1.tar.gz"]
+  }
 }
 ```
 
@@ -213,7 +217,9 @@ During builds, Nix tracks:
 
 ```json
 {
-  "references": ["/nix/store/...-glibc-2.38"]
+  "dependencies": {
+    "references": ["...-glibc-2.38"]
+  }
 }
 ```
 
@@ -409,4 +415,4 @@ nix why-depends .#package .#package
 
 In the next capsule, we'll explore **multiple outputs**—how to split packages into separate outputs for efficient storage and deployment.
 
-> [**Nix Capsules 19: Multiple Outputs**](./19-multiple-outputs.md)
+> **[Nix Capsules 19: Multiple Outputs](./19-multiple-outputs.md)**

@@ -225,4 +225,4 @@ gtk3.overrideOutputs (outputs: {
 
 In the next capsule, we'll explore **dependency propagation**—how packages pass dependencies to their dependents through buildInputs, nativeBuildInputs, and setup hooks.
 
-> [**Nix Capsules 17: Dependency Propagation**](./17-dependency-propagation.md)
+> **[Nix Capsules 17: Dependency Propagation](./17-dependency-propagation.md)**

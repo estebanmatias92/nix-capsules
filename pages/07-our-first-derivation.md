@@ -2,192 +2,208 @@
 
 ## Introduction
 
-Welcome to the sixth Nix capsule. In the previous capsule, we learned about functions and imports. Now we finally write our first **derivation**—the core concept in Nix that describes how to build something.
+Welcome to the seventh Nix capsule. We have learned the language syntax. Now, we finally write our first **Derivation**.
 
-A derivation is a recipe: it tells Nix what to build, what system it's for, what builder to use, and what dependencies it needs. Nix uses derivations to ensure reproducible builds.
+A derivation is the atomic unit of a Nix build. It is a **recipe** that tells Nix exactly how to create a file or directory in the Nix Store.
 
-## The Derivation Builtin
+## The `derivation` Builtin
 
-The `derivation` builtin creates a derivation from an attribute set. The set must include at least three attributes:
+At the lowest level, Nix provides a function called `builtins.derivation`. Every package you use (Firefox, Vim, Python) eventually calls this primitive function.
+
+It requires three mandatory attributes:
+
+1. **name**: What to call the package.
+2. **system**: Which architecture this is for (e.g., `x86_64-linux`).
+3. **builder**: The absolute path to the executable that runs the build.
+
+## Step 1: The Broken Derivation
+
+Let's try to build something using a modern Flake. We will intentionally make mistakes to understand how Nix thinks.
+
+### `flake.nix`
 
 ```nix
-derivation {
-  name = "myname";
-  system = "x86_64-linux";
-  builder = "/path/to/builder";
+{
+  description = "My First Derivation";
+
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  };
+
+  outputs = { self, nixpkgs }:
+  let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in
+  {
+    packages.${system}.default = derivation {
+      name = "my-first-package";
+      system = system;
+      # ERROR: This file doesn't exist!
+      builder = "my-builder-executable";
+    };
+  };
 }
 ```
 
-The attributes define:
-
-- **name**: Identifier for this derivation (appears in the store path)
-- **system**: Target platform (e.g., "x86_64-linux", "aarch64-darwin")
-- **builder**: Executable that performs the build
-
-Check your current system:
-
-```nix
-nix-repl> builtins.currentSystem
-"x86_64-linux"
-```
-
-Create a minimal derivation:
-
-```nix
-nix-repl> d = derivation { name = "myname"; builder = "mybuilder"; system = builtins.currentSystem; }
-nix-repl> d
-«derivation /nix/store/z3hhlxbckx4g3n9sw91nnvlkjvyw754p-myname.drv»
-```
-
-The result is a `.drv` file—the derivation specification. Nix created it without building anything.
-
-## Understanding .drv Files
-
-A `.drv` file is an intermediate representation describing how to build a derivation. Think of it like a compiled object file in C:
-
-- `.nix` source files → `.drv` object files → built outputs in `/nix/store`
-
-View the derivation structure:
+### Try to build it
 
 ```bash
-nix derivation show /nix/store/z3hhlxbckx4g3n9sw91nnvlkjvyw754p-myname.drv
+nix build .
 ```
+
+**The Failure:**
+You will get an error like `executing 'my-builder-executable': No such file or directory`.
+**Why?** Nix builds happen in a sandbox. It cannot see `/bin/bash` or `/usr/bin/make` from your host system. You must provide a builder that exists _inside the Nix store_.
+
+## Step 2: The "Do Nothing" Derivation
+
+We need a real program. Let's use `coreutils` from Nixpkgs, which contains the `true` command (a program that does nothing and returns success).
+
+Update your `flake.nix`:
+
+```nix
+  #...
+    packages.${system}.default = derivation {
+      name = "my-second-package";
+      system = system;
+      # We use string interpolation to get the store path of coreutils
+      builder = "${pkgs.coreutils}/bin/true";
+    };
+  # ...
+```
+
+### Try to build it again
+
+```bash
+nix build .
+```
+
+**The Failure:**
+`builder for ... failed to produce output path for output 'out'`
+**Why?** The builder ran successfully (exit code 0), but it **didn't create anything**.
+Nix mandates that a derivation **must** produce a file or directory at the specific path Nix calculated for it.
+
+## Step 3: A Working Derivation
+
+To make it work, we need a builder that can write files. We will use `bash`.
+
+We need to:
+
+1. Set `bash` as the builder.
+2. Pass arguments (`args`) to tell Bash what to do.
+3. Write something to the environment variable `$out` (which Nix sets for us).
+
+```nix
+  #...
+    packages.${system}.default = derivation {
+      name = "my-third-package";
+      system = system;
+
+      # 1. The Executable
+      builder = "${pkgs.bash}/bin/bash";
+
+      # 2. The Arguments
+      args = [ "-c" "echo 'Hello from Nix' > $out" ];
+    };
+  # ...
+```
+
+### Build it (Success!)
+
+```bash
+nix build .
+```
+
+Now check the result:
+
+```bash
+cat ./result
+# Output: Hello from Nix
+```
+
+You have just manually created a package without using `stdenv` or `make`!
+
+## Understanding `.drv` Files
+
+When you ran `nix build`, Nix actually performed two distinct steps:
+
+1. **Instantiation:** It evaluated your `.nix` code and created a **Derivation File** (`.drv`). This is a language-independent JSON-like file that describes the build.
+2. **Realization:** It executed the `.drv` instructions to create the output.
+
+You can see the intermediate `.drv` file without building:
+
+```bash
+# Instantiate the derivation
+nix path-info --derivation .
+# Output: /nix/store/...-my-third-package.drv
+```
+
+Inspect its content:
+
+```bash
+nix derivation show .
+```
+
+You will see the raw instructions Nix uses:
 
 ```json
 {
-  "/nix/store/z3hhlxbckx4g3n9sw91nnvlkjvyw754p-myname.drv": {
-    "outputs": {
-      "out": {
-        "path": "/nix/store/40s0qmrfb45vlh6610rk29ym318dswdr-myname"
-      }
-    },
-    "inputSrcs": [],
-    "inputDrvs": {},
-    "platform": "x86_64-linux",
-    "builder": "mybuilder",
-    "args": [],
-    "env": {
-      "builder": "mybuilder",
-      "name": "myname",
-      "out": "/nix/store/40s0qmrfb45vlh6610rk29ym318dswdr-myname",
-      "system": "x86_64-linux"
+  "derivations": {
+    "b04ni96maz8pkgllsr90qcbbgcm8zr8h-my-third-package.drv": {
+      "args": ["-c", "echo 'Hello from Nix' > $out"],
+      "builder": "/nix/store/hkbylipx1iiawqdcjv858p501wv81bpm-bash-interactive-5.3p3/bin/bash",
+      "env": {
+        "builder": "/nix/store/hkbylipx1iiawqdcjv858p501wv81bpm-bash-interactive-5.3p3/bin/bash",
+        "name": "my-third-package",
+        "out": "/nix/store/cyaknv6lx5aml34nsj651ijkkmzzrmvx-my-third-package",
+        "system": "x86_64-linux"
+      },
+      "inputs": {
+        "drvs": {
+          "w673c1p7yx8crv1q7xlylfzw951g6ifl-bash-interactive-5.3p3.drv": {
+            "dynamicOutputs": {},
+            "outputs": ["out"]
+          }
+        },
+        "srcs": []
+      },
+      "name": "my-third-package",
+      "outputs": {
+        "out": {
+          "path": "cyaknv6lx5aml34nsj651ijkkmzzrmvx-my-third-package"
+        }
+      },
+      "system": "x86_64-linux",
+      "version": 4
     }
-  }
+  },
+  "version": 4
 }
 ```
 
-The out path is already known—Nix computes it from the derivation's inputs. The build product will appear there when built.
+Notice that the `builder` path is a full store path (e.g., `/nix/store/lw1...-bash`). Nix replaced `${pkgs.bash}` with the actual path during Instantiation.
 
-## Build Phases: Instantiate vs Realize
+## The `$out` Variable
 
-Nix separates derivation handling into two phases:
+How did the script know where to write?
+Nix automatically sets the `$out` environment variable inside the builder sandbox. This path is calculated **before** the build runs.
 
-1. **Instantiation**: Parse and evaluate the Nix expression, produce `.drv` files
-2. **Realization**: Build the derivations, produce outputs in the store
-
-```bash
-# Instantiation only
-nix-instantiate hello.nix
-
-# Instantiation + building
-nix build .#hello
-```
-
-The `:b` command in `nix repl` performs realization:
-
-```nix
-nix-repl> :b d
-error: a `mysystem' is required to build `/nix/store/...myname.drv', but I am a `x86_64-linux'
-```
-
-The fake builder and system don't match our platform—Nix correctly rejects this.
-
-## Derivation Set Attributes
-
-A derivation returns an attribute set with special attributes:
-
-```nix
-nix-repl> builtins.isAttrs d
-true
-
-nix-repl> builtins.attrNames d
-[ "all" "builder" "drvAttrs" "drvPath" "name" "out" "outPath" "outputName" "system" "type" ]
-```
-
-- `d.drvPath`: Path to the `.drv` file
-- `d.outPath`: Path where build output will appear
-- `d.type`: Always "derivation" for derivation sets
-
-```nix
-nix-repl> d.outPath
-"/nix/store/40s0qmrfb45vlh6610rk29ym318dswdr-myname"
-```
-
-## Referring to Other Derivations
-
-Derivations can reference other derivations. Nix automatically converts derivation sets to their output paths:
-
-```nix
-nix-repl> :l <nixpkgs>
-Added 3950 variables.
-
-nix-repl> coreutils
-«derivation /nix/store/1zcs1y4n27lqs0gw4v038i303pb89rw6-coreutils-8.21.drv»
-
-nix-repl> builtins.toString coreutils
-"/nix/store/8w4cbiy7wqvaqsnsnb3zvabq1cp2zhyz-coreutils-8.21"
-```
-
-Nix converts derivation sets to strings via their `outPath` attribute—this enables path interpolation:
-
-```nix
-nix-repl> "${coreutils}"
-"/nix/store/8w4cbiy7wqvaqsnsnb3zvabq1cp2zhyz-coreutils-8.21"
-
-nix-repl> "${coreutils}/bin/true"
-"/nix/store/8w4cbiy7wqvaqsnsnb3zvabq1cp2zhyz-coreutils-8.21/bin/true"
-```
-
-## A Working Derivation
-
-Use `coreutils/bin/true` as a builder—it succeeds but produces no output:
-
-```nix
-nix-repl> d = derivation {
-  name = "myname";
-  builder = "${coreutils}/bin/true";
-  system = builtins.currentSystem;
-}
-nix-repl> :b d
-builder for `/nix/store/...myname.drv' failed to produce output path
-```
-
-The builder ran successfully but didn't create the output path. Real derivations must create their `$out` directory or file.
-
-## The $out Environment Variable
-
-Nix reserves an output path for each derivation and passes it as `$out` to the builder. The builder must create something at `$out`.
-
-```nix
-nix-repl> d.out
-«derivation /nix/store/...myname.drv»
-
-nix-repl> d == d.out
-true
-```
-
-For single-output derivations, `out` is the derivation itself.
+- **Input:** `derivation { name = "foo"; ... }`
+- **Calculation:** Hash of inputs + name.
+- **Target:** `/nix/store/hash-foo`
+- **Requirement:** The builder **must** create a file or directory at that exact path.
 
 ## Summary
 
-- The `derivation` builtin creates derivations from attribute sets
-- `.drv` files describe builds; actual outputs go to `/nix/store`
-- Nix separates instantiation (creating `.drv`) from realization (building)
-- Derivations reference each other via their `outPath`
-- The `$out` environment variable is where builders must place outputs
+- **`derivation`** is the low-level primitive that powers all of Nix.
+- **Sandboxing:** Builders cannot see system tools; you must provide paths to store objects (like `${pkgs.bash}`).
+- **The Contract:** A derivation must create the file/directory at `$out`.
+- **Instantiation:** `.nix` -> `.drv` (The Plan).
+- **Realization:** `.drv` -> Output (The Execution).
 
 ## Next Capsule
 
-In the next capsule, we'll explore **store path mechanics**—how Nix computes the unique paths where build outputs are stored and why content-addressing matters.
+We've used `builtins.derivation`, but in the real world, we rarely write raw shell scripts like this. We use the **Standard Environment** (`stdenv`). But first, we need to understand the magic behind those hash strings in the store paths.
 
-> [**Nix Capsules 8: Store Path Mechanics**](./08-store-path-mechanics.md)
+> **[Nix Capsules 8: Store Path Mechanics](./08-store-path-mechanics.md)**

@@ -2,359 +2,223 @@
 
 ## Introduction
 
-In the previous capsule, we wrote our first derivation. Now we'll understand **how Nix computes store paths**—the mechanics behind content-addressing, hashing, and why paths look the way they do.
+In previous capsules, we created files in the store like `/nix/store/g12...-hello`.
 
-Understanding store path mechanics is essential for debugging, caching, and grasping why Nix achieves reproducibility.
+But why `g12...`? Why is it 32 characters long? And why does Nix claim to be "reproducible"?
 
-## The NAR Format
+The answer lies in **Store Path Mechanics**. Nix doesn't assign random IDs; it calculates them based on the **content** and **inputs** of the package. This ensures that if the inputs are identical, the output path is identical—guaranteeing reproducibility.
 
-Nix uses **NAR** (Nix ARchive) as its deterministic serialization format. NAR replaces tar for several reasons:
+## The Foundation: NAR (Nix ARchive)
 
-### NAR Characteristics
+To hash a directory reliably, you need a deterministic format. Standard `tar` archives are not deterministic (they include timestamps, owner IDs, and file order can vary).
 
-- **Sorted file order**: Entries are always sorted alphabetically
-- **Consistent metadata**: Permissions and types are preserved, but timestamps are zeroed
-- **No owner info**: User and group IDs are not stored
-- **Content-addressed**: The NAR hash depends only on file contents
+Nix uses its own format: **NAR** (Nix ARchive).
 
-### NAR Structure
+- **Sorted:** Files are always alphabetical.
+- **Timeless:** All timestamps are set to 0 (Jan 1, 1970).
+- **Ownerless:** User/Group IDs are ignored.
+- **Permission-lite:** Only tracks "executable" or "regular".
 
-```bash
-(type) directory
-│
-├── (type) regular file "hello.c" (contents)
-│
-├── (type) symlink "hello" -> "hello.c"
-│
-└── (type) directory "src"
-    └── (type) regular file "main.c" (contents)
-```
+Nix converts every package to a NAR before hashing it.
 
-### Creating NAR Archives
+## The Hashing Pipeline
 
-```bash
-# Create a NAR (legacy command, still works)
-nix-store --dump /path/to/dir > output.nar
+How do we get from a source file to `/nix/store/3sg4...-hello`?
 
-# Extract a NAR (legacy command, still works)
-nix-store --import < output.nar
-```
-
-Modern Nix uses NAR internally for content hashing.
-
-## Hashing Process
-
-The store path hash goes through several steps:
-
-```bash
-┌─────────────┐
-│  Contents   │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  NAR format │  (deterministic serialization)
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  SHA-256    │  (160-bit output)
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  Base-32    │  (32 characters)
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────────────┐
-│ /nix/store/[hash]-name      │  (final path)
-└─────────────────────────────┘
-```
+1. **Serialization:** The directory/file is converted to NAR.
+2. **Hashing:** The NAR is hashed using SHA-256.
+3. **Truncation:** The hash is truncated to 160 bits (20 bytes).
+4. **Encoding:** The result is encoded in **Base-32**.
 
 ### Base-32 Encoding
 
-Nix uses a custom base-32 alphabet:
+Nix uses a custom alphabet that avoids ambiguous characters (no `e`, `o`, `u`, `t` to avoid accidental offensive words, and no `1`, `l`, `I` confusion).
 
-```bash
+```text
 0123456789abcdfghijklmnpqrsvwxyz
-         ↑
-         No: e, o, u, B, I, O, etc.
 ```
 
-This avoids ambiguous characters and creates valid filenames.
+### Try it yourself
+
+You can see the hash of any file using the modern CLI:
 
 ```bash
-# Example: SHA-256 hash
-sha256: 2bfee9d7d0eea2e8ad5e8b2a9fcfd3a1c4e7b6d9f0a8c2e5b1d3c7f9a8e2d5
+# Create a dummy file
+echo "Hello Nix" > hello.txt
 
-# Becomes (base-32, truncated):
-3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x
+# Calculate its NAR hash
+nix hash file --type sha256 ./hello.txt
+# Output: sha256-s0j1... (standard format)
+
+nix hash file --type sha256 --base32 ./hello.txt
+# Output: 0kc...     (sri/nix format)
 ```
 
-## Input-Addressed vs Content-Addressed
+## Input-Addressed vs. Fixed-Output
 
-Nix uses two addressing schemes:
+There are two main ways Nix calculates the final store path.
 
-### Input-Addressed Paths
+### 1. Input-Addressed (The Standard)
 
-Most derivations are **input-addressed**—the hash depends on inputs:
+This is used for **building software**. The hash of the output path is calculated based on the hash of the **inputs** (the derivation).
+
+If you change **one character** in a comment in your source code, the input hash changes. Therefore, the output path changes.
+
+- **Pro:** Guarantees that if the path is the same, the software was built exactly the same way.
+- **Con:** A tiny change rebuilds the world (if `glibc` changes, everything depending on it changes).
+
+### 2. Fixed-Output (The Exception)
+
+This is used for **downloading files** (e.g., `fetchurl`). Since we can't know the hash of a download before we download it, we must **promise** Nix what the hash will be.
 
 ```nix
-derivation {
-  name = "hello";
-  system = "x86_64-linux";
-  builder = "/nix/store/...-bash-5.2/bin/bash";
-  args = [ ./builder.sh ];
-  src = ./hello.c;
-}
+outputHash = "sha256-A...";
+outputHashAlgo = "sha256";
 ```
 
-The path hash includes:
+- **Mechanism:** Nix trusts your promise. It calculates the store path using the _promised_ hash, not the derivation inputs.
+- **Safety:** After downloading, Nix verifies the actual content matches the promise. If not, it fails.
 
-- The `.drv` file content (builder, args, dependencies)
-- All input derivations (recursively)
-- System and architecture
+## Inspecting the Derivation
 
-If any input changes, the output path changes.
-
-### Content-Addressed Paths
-
-For sources with known hashes, Nix uses **content-addressing**:
-
-```nix
-stdenv.mkDerivation {
-  name = "mytarball";
-  src = fetchurl {
-    url = "https://example.com/file.tar.gz";
-    sha256 = "abcdef...";
-  };
-}
-```
-
-The path depends on:
-
-- The declared `sha256` (not the actual download)
-- The derivation name
-
-Even if the source changes upstream, Nix uses the declared hash.
-
-## Fixed-Output Derivations
-
-The `fetchurl`, `fetchFromGitHub`, and similar functions create **fixed-output derivations**:
-
-```nix
-fetchurl {
-  url = "https://example.com/file.tar.gz";
-  sha256 = "sha256-abc123...";
-}
-```
-
-These are special because:
-
-- The output path is computed from the **declared hash**
-- Nix verifies the downloaded content matches the hash
-- Two identical sources always get the same path
-
-### Why Fixed Outputs?
-
-Without fixed outputs, the path would change if:
-
-- The URL server modifies the file
-- The file is served with different timestamps
-- The server is unavailable during build
-
-Fixed outputs guarantee reproducibility.
-
-## Viewing Derivation Outputs
-
-Check how Nix computes a path:
+We can see exactly what goes into the hash calculation by inspecting the `.drv` file.
 
 ```bash
-# Show derivation details
-nix derivation show /nix/store/...-hello-2.12.1.drv
+# Build the hello package (if not already built)
+nix build nixpkgs#hello
+
+# Show the derivation structure
+nix derivation show ./result
 ```
+
+This returns a JSON object (Schema v4). Notice how dependencies are listed under `inputs.drvs`:
 
 ```json
 {
-  "/nix/store/...-hello-2.12.1.drv": {
-    "outputs": {
-      "out": {
-        "path": "/nix/store/3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x-hello-2.12.1"
-      }
-    },
-    "inputDrvs": { ... },
-    "inputSrcs": [ ... ],
-    "platform": "x86_64-linux",
-    "builder": "/nix/store/...-bash-5.2/bin/bash",
-    "args": [ ... ],
-    "env": {
+  "derivations": {
+    "72pl0rs7xi7vsniia10p7q8vl7f36xaw-hello-2.12.1.drv": {
+      "args": [
+        "-e",
+        "/nix/store/l622p70vy8k5sh7y5wizi5f2mic6ynpg-source-stdenv.sh",
+        "/nix/store/shkw4qm9qcw5sc5n1k5jznc83ny02r39-default-builder.sh"
+      ],
+      "builder": "/nix/store/lw117lsr8d585xs63kx5k233impyrq7q-bash-5.3p3/bin/bash",
+      "env": {
+        "NIX_MAIN_PROGRAM": "hello",
+        "__structuredAttrs": "",
+        "buildInputs": "",
+        "builder": "/nix/store/lw117lsr8d585xs63kx5k233impyrq7q-bash-5.3p3/bin/bash",
+        "cmakeFlags": "",
+        "configureFlags": "",
+        "depsBuildBuild": "",
+        "depsBuildBuildPropagated": "",
+        "depsBuildTarget": "",
+        "depsBuildTargetPropagated": "",
+        "depsHostHost": "",
+        "depsHostHostPropagated": "",
+        "depsTargetTarget": "",
+        "depsTargetTargetPropagated": "",
+        "doCheck": "1",
+        "doInstallCheck": "1",
+        "mesonFlags": "",
+        "name": "hello-2.12.1",
+        "nativeBuildInputs": "/nix/store/k9i66zardsrspa4mf0pxqxhbhb48jby1-version-check-hook",
+        "out": "/nix/store/i3zw7h6pg3n9r5i63iyqxrapa70i4v5w-hello-2.12.1",
+        "outputs": "out",
+        "patches": "",
+        "pname": "hello",
+        "postInstallCheck": "stat \"${!outputBin}/bin/hello\"\n",
+        "propagatedBuildInputs": "",
+        "propagatedNativeBuildInputs": "",
+        "src": "/nix/store/dw402azxjrgrzrk6j0p66wkqrab5mwgw-hello-2.12.1.tar.gz",
+        "stdenv": "/nix/store/n1k7lm072r5k3g6v6wb91d2q4sxcxddm-stdenv-linux",
+        "strictDeps": "",
+        "system": "x86_64-linux",
+        "version": "2.12.1"
+      },
+      "inputs": {
+        "drvs": {
+          "00kr1572g79ra9m29vxxnrfxm38nb82m-hello-2.12.1.tar.gz.drv": {
+            "dynamicOutputs": {},
+            "outputs": [
+              "out"
+            ]
+          },
+          "i0lswaixfnfr6j3qr9xrij8nq93rp9b5-bash-5.3p3.drv": {
+            "dynamicOutputs": {},
+            "outputs": [
+              "out"
+            ]
+          },
+          "qyk0syp0q2znsv9dpva6krckkcgnxbi1-stdenv-linux.drv": {
+            "dynamicOutputs": {},
+            "outputs": [
+              "out"
+            ]
+          },
+          "yy1bpiw7j0nsygs1iyrz465bplp948ck-version-check-hook.drv": {
+            "dynamicOutputs": {},
+            "outputs": [
+              "out"
+            ]
+          }
+        },
+        "srcs": [
+          "l622p70vy8k5sh7y5wizi5f2mic6ynpg-source-stdenv.sh",
+          "shkw4qm9qcw5sc5n1k5jznc83ny02r39-default-builder.sh"
+        ]
+      },
       "name": "hello-2.12.1",
-      "out": "/nix/store/...-hello-2.12.1",
-      "src": "/nix/store/...-hello-2.12.1.tar.gz",
-      "system": "x86_64-linux"
+      "outputs": {
+        "out": {
+          "path": "i3zw7h6pg3n9r5i63iyqxrapa70i4v5w-hello-2.12.1"
+        }
+      },
+      "system": "x86_64-linux",
+      "version": 4
     }
-  }
+  },
+  "version": 4
 }
 ```
 
-The `out.path` field shows the computed store path.
-
-## Computing Hashes Manually
-
-For debugging, compute hashes manually:
-
-```bash
-# Hash a file (base32)
-nix-hash --type sha256 --base32 ./file
-
-# Hash in NAR format
-nix-hash --type sha256 --base32 --nar ./file
-
-# Truncate to 160 bits (store path length)
-nix-hash --type sha256 --truncate --base32 ./file
-```
-
-### Complete Path Computation
-
-```bash
-# Step 1: Hash the source file
-nix-hash --type sha256 --base32 ./hello.c
-# a1b2c3d4e5f6...
-
-# Step 2: Create input for path hash
-echo -n "source:sha256:a1b2c3d4e5f6...:path:hello.c" > input.txt
-
-# Step 3: Hash for final path
-nix-hash --type sha256 --truncate --base32 input.txt
-# 3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x
-
-# Step 4: Final path
-/nix/store/3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x-hello.c
-```
+If **anything** in `inputs` or `env` changes, the filename of this `.drv` file changes. Consequently, the calculated `outputs.out.path` changes.
 
 ## Store Path Validation
 
-Valid store path characters:
+A valid store path looks like this:
+`/nix/store/<32-char-hash>-<name>`
 
-```nix
-Allowed:  a-z, 0-9, -, _, .
-Forbidden: A-Z, spaces, special chars
-```
+- **Hash:** The unique identifier.
+- **Name:** Human-readable (for your convenience only; Nix mostly ignores it for logic).
 
-This ensures paths work on all filesystems.
+**Rules:**
 
-```bash
-# These work:
-/nix/store/abc123-hello-2.12.1/
-/nix/store/abc123-hello_world-2.12.1/
-/nix/store/abc123-hello-2.12.1.1/
+- **Name Chars:** `a-z`, `A-Z`, `0-9`, `+`, `-`, `.`, `_`, `?`, `=`.
+- **Length:** The name is limited (fs limits), but the hash is always 32 chars.
 
-# These don't:
-/nix/store/abc123-Hello-2.12.1/  # Uppercase
-/nix/store/abc123-hello world/   # Space
-```
+## Practical Implications
 
-## Content-Addressable Futures
+Understanding this explains several Nix behaviors:
 
-Modern Nix (2.18+) supports **content-addressable derivations** where outputs are addressed by their content:
-
-```nix
-{
-  outputs = {
-    out = {
-      type = "derivation";
-      output = "out";
-      inputDrvs = { };
-      inputSrcs = [ ];
-      system = "x86_64-linux";
-      builder = "...";
-      args = [ ];
-      env = { };
-    };
-  };
-}
-```
-
-This means:
-
-- The path hash depends on **output content**, not inputs
-- If outputs are identical, paths are identical
-- Better caching and deduplication
-
-## Querying Store Paths
-
-Use modern commands to explore paths:
-
-```bash
-# List store contents (requires specific store path)
-nix store ls /nix/store/i3zw7h6pg3n9r5i63iyqxrapa70i4v5w-hello-2.12.2
-
-# Or use standard bash ls
-ls /nix/store | grep hello | head -5
-
-# Find a specific package
-ls /nix/store | grep hello
-
-# Show full details
-ls -ld /nix/store/*-hello-*
-```
-
-## Why This Matters
-
-Understanding store path mechanics helps you:
-
-| Scenario | Understanding Helps |
-| -------- | ------------------- |
-| Debugging build issues | Trace why paths change |
-| Binary caches | Understand cache keys |
-| Reproducibility | Know why same inputs = same outputs |
-| Cleanup | Identify what's safe to delete |
-| Cross-compilation | Understand platform in paths |
-
-## Common Patterns
-
-### Pattern 1: Source Paths
-
-Source files get paths based on content:
-
-```bash
-/nix/store/a1b2c3d4-hello.c        # Hash of hello.c
-/nix/store/e5f6g7h8i9-hello.c      # Different file = different hash
-```
-
-### Pattern 2: Derivation Outputs
-
-Built packages include derivation hash:
-
-```bash
-/nix/store/3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x-hello-2.12.1/
-#                                           └──────────┘
-#                                           Name + version
-```
-
-### Pattern 3: Fixed Outputs
-
-Fetched sources use declared hash:
-
-```bash
-/nix/store/sha256-abc123def456...-hello-2.12.1.tar.gz
-#                 └─────────────┘
-#                  Declared hash
-```
+1. **Why can't I edit files in `/nix/store`?**
+   If you modified a file, its content hash would no longer match the path hash. You would break the integrity of the system. That's why the store is Read-Only.
+2. **Why do I see multiple versions of the same library?**
+   `/nix/store/aaa...-openssl-1.1`
+   `/nix/store/bbb...-openssl-1.1`
+   These might be the same version of OpenSSL, but `bbb` was built with a different compiler flag or a newer generic builder. To Nix, they are completely different packages.
+3. **Why are downloads checked?**
+   In `fetchurl`, if you change the URL but keep the `sha256` the same, the store path **will not change**. Nix assumes that if the hash is the same, the content is the same, regardless of where it came from.
 
 ## Summary
 
-- NAR format provides deterministic serialization
-- SHA-256 + Base-32 produces store path hashes
-- Input-addressed: hash depends on derivation inputs
-- Content-addressed: hash depends on output content
-- Fixed-output derivations use declared hashes for reproducibility
-- Modern Nix supports full content-addressable derivations
-- Store path rules ensure valid filenames across systems
+- **NAR** is the deterministic file format used for hashing.
+- **Input-Addressed:** Normal builds. Path depends on the derivation instructions (inputs).
+- **Fixed-Output:** Downloads. Path depends on a declared hash.
+- **The Butterfly Effect:** A change in a dependency changes the input hash, which changes the derivation hash, which changes the output path.
 
 ## Next Capsule
 
-In the next capsule, we'll explore **stdenv**—the standard environment that provides build utilities and phases for most Nix packages.
+Now that we understand the math behind the paths, let's stop writing manual builders and use the tool that powers 99% of Nix packages: **stdenv**.
 
-> [**Nix Capsules 9: Building with stdenv**](./09-building-with-stdenv.md)
+> **[Nix Capsules 9: Building with stdenv](./09-building-with-stdenv.md)**

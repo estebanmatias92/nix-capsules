@@ -43,9 +43,9 @@ nix-repl> "Hello" + " World"
 
 ### Paths
 
-Paths are a first-class data type in Nix. They are written without quotes.
+Paths are a first-class data type in Nix. They are written **without quotes**.
 
-- **Absolute:** `/etc/nix/nix.conf`
+- **Absolute:** `/etc/nix/nix.conf` (Rarely used in pure evaluation)
 - **Relative:** Must start with `./` to be valid. `./configuration.nix`.
 
 ```nix
@@ -53,7 +53,9 @@ nix-repl> ./foo
 /absolute/path/to/current/directory/foo
 ```
 
-If a path points to a file that exists, Nix will often copy it to the Nix Store when evaluated in a package context, returning the store path.
+> **Flake Tip: The Git Requirement**
+> When using **Flakes**, Nix enforces strict purity. If you reference a path like `./my-script.sh`, Nix **will not see it** unless the file is tracked by Git.
+> Always run `git add my-script.sh` before referencing it in a Flake!
 
 ### Antiquotation (Interpolation)
 
@@ -63,6 +65,10 @@ You can insert the result of an expression into a string using `${}`.
 nix-repl> name = "Nix"
 nix-repl> "Hello ${name}"
 "Hello Nix"
+
+nix-repl> year = 2026
+nix-repl> "Year " + toString year
+"Year 2026"
 ```
 
 ## Collections
@@ -72,7 +78,7 @@ nix-repl> "Hello ${name}"
 Lists are sequences of values separated by **whitespace**, not commas.
 
 ```nix
-nix-repl> [ 1 2 "three" (2+2) ]
+nix-repl> [ 1 2 "three" (2 + 2) ]
 [
   1
   2
@@ -105,11 +111,6 @@ You can define nested sets directly:
 
 ```nix
 nix-repl> my_set = { x.y.z = 10; }
-nix-repl> my_set
-{
-  x = { ... };
-}
-
 nix-repl> :p my_set
 {
   x = {
@@ -152,11 +153,11 @@ nix-repl> let
 15
 ```
 
-This is how we define private data or helper values before returning the final result (the expression after `in`).
+This is how we define private data or helper values before returning the final result.
 
 ### `inherit`
 
-When constructing sets, it is common to assign a variable to a key with the same name. `inherit` is shorthand for this.
+When constructing sets, it is common to assign a variable to a key with the same name. `inherit` is the shorthand for this.
 
 Instead of:
 
@@ -170,7 +171,7 @@ You can write:
 let x = 1; in { inherit x; }
 ```
 
-You can also inherit directly from another set:
+You can also inherit directly from another set (very common in Flakes):
 
 ```nix
 nix-repl> s = { a = 1; b = 2; }
@@ -188,7 +189,7 @@ nix-repl> with s; a + b
 30
 ```
 
-While convenient, overuse of `with` can make code harder to read because it obscures where a variable comes from. It is most commonly seen at the top of files to bring packages into scope.
+> **Style Note:** While `with` is convenient, modern Nix style guides often prefer `inherit` because `with` makes it unclear where variables come from (implicit scoping).
 
 ## Summary
 
@@ -198,10 +199,10 @@ While convenient, overuse of `with` can make code harder to read because it obsc
 - **`rec`:** Allows keys inside a set to reference each other.
 - **`let ... in`:** Defines local variables.
 - **`inherit`:** Shorthand for assigning variables to keys of the same name.
-- **`with`:** Adds a set's attributes to the scope.
+- **`with`:** Adds a set's attributes to the scope (use sparingly).
 
 ## Next Capsule
 
-We have covered the data structures. In the next capsule, **Functions and Imports**, we will learn how to create logic and modularize our Nix code by splitting it across multiple files.
+We have covered the data structures. In the next capsule, **Functions and Imports**, we will learn how to create logic and modularize our Nix code, which will lead us directly to understanding the structure of a Flake.
 
-> [**Nix Capsules 6: Functions and Imports**](./06-functions-and-imports.md)
+> **[Nix Capsules 6: Functions and Imports](./06-functions-and-imports.md)**

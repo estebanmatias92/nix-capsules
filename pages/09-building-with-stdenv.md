@@ -2,230 +2,179 @@
 
 ## Introduction
 
-In the previous capsule, we explored store path mechanics. Now we'll explore **stdenv**—the **standard environment** that provides build utilities and phases for most Nix packages.
+In the previous capsule, we wrote a builder script from scratch. While educational, that is rarely done in practice.
 
-`stdenv` is a set of conventions and tools that makes packaging software consistent across thousands of packages in nixpkgs.
+Most software follows a standard lifecycle: **Unpack** source → **Configure** build → **Compile** → **Install**.
+
+Nix provides a **Standard Environment** (`stdenv`) that automates this entire pipeline. It includes standard tools (GCC, Make, Coreutils) and a generic builder that knows how to handle standard Makefiles and Autotools projects automatically.
 
 ## What is stdenv?
 
-`stdenv` is a Nix derivation that provides:
+`stdenv` is a derivation that provides:
 
-- A shell environment for builds
-- Standard build phases (unpack, configure, build, install)
-- Common build tools (make, gcc, shell)
-- Automatic RPATH handling and binary patching
+1. **A Standard Shell:** Populated with common tools (`ls`, `cp`, `grep`, `make`, `gcc`).
+2. **A Generic Builder:** A script that iterates through standard build phases.
+3. **System Setup:** Variables like `$out`, `$src`, and `$PATH` are pre-configured.
 
-Most packages use `stdenv.mkDerivation` instead of the raw `derivation` builtin.
+Most packages in Nixpkgs use `stdenv.mkDerivation`.
 
-## Using stdenv.mkDerivation
+## The Standard Pipeline (Phases)
 
-```nix
-{ stdenv }:
+When you run `stdenv.mkDerivation`, it executes the following **Phases** in order. If you don't write a custom builder, this happens automatically:
 
-stdenv.mkDerivation {
-  name = "hello-2.12.1";
-  src = ./hello-2.12.1.tar.gz;
-}
-```
+1. **unpackPhase**: Finds your `src` (tarball, zip, git), extracts it, and `cd`s into it.
+2. **patchPhase**: Applies any patches listed in the `patches` attribute.
+3. **configurePhase**: Checks for a `./configure` script. If found, runs it with standard flags (e.g., `--prefix=$out`).
+4. **buildPhase**: Runs `make` (or checks for a `Makefile`).
+5. **checkPhase**: Runs `make check` (if enabled).
+6. **installPhase**: Runs `make install`.
+7. **fixupPhase**: Nix-specific magic. It strips debugging symbols (to save space) and patches binaries (RPATH) to ensure they find their libraries in the Nix Store.
 
-That's it! No builder script needed—stdenv handles everything.
+## Example 1: The Zero-Config Build
 
-## Build Phases
+The power of `stdenv` is that for standard GNU-compliant software, **you often don't need to write any build scripts**.
 
-`stdenv` executes these phases in order:
+We will build **GNU Hello** from its source tarball.
 
-1. **unpackPhase**: Extracts source archives
-2. **patchPhase**: Applies patches from `patches` attribute
-3. **configurePhase**: Runs `./configure` with flags
-4. **buildPhase**: Runs `make`
-5. **checkPhase**: Runs `make check` (can be disabled)
-6. **fixupPhase**: Strips binaries, patches RPATH
-7. **installPhase**: Runs `make install`
-
-## Unpack Phase
-
-Automatically handles:
-
-- `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.zip`, etc.
-- Single directory extraction
-- Sets `$src` to unpacked directory
-
-Override with:
+### `flake.nix`
 
 ```nix
-unpackPhase = ''
-  tar -xf $src
-  cd my-custom-dir
-'';
-```
+{
+  description = "Nix Capsule 9: stdenv Demo";
 
-## Configure Phase
-
-Runs `./configure` with:
-
-- `--prefix=$out` for installation destination
-- `--build` and `--host` from `$stdenv`
-- Additional flags from `configureFlags`
-
-```nix
-configureFlags = [
-  "--enable-feature-x"
-  "--without-docs"
-];
-```
-
-## Build Phase
-
-Runs `make` with:
-
-- `$makeFlags` if specified
-- Parallelization from `$NIX_BUILD_CORES`
-
-```nix
-makeFlags = [ "V=1" ];  # Verbose build
-```
-
-## Check Phase
-
-Runs tests by default. Disable for unreliable tests:
-
-```nix
-doCheck = false;
-```
-
-Or customize:
-
-```nix
-checkPhase = ''
-  make test-unit
-'';
-```
-
-## Install Phase
-
-Runs `make install`. Customize with:
-
-```nix
-installPhase = ''
-  make install PREFIX=$out
-  mkdir -p $out/share/doc
-  cp README $out/share/doc/
-'';
-```
-
-## Fixup Phase
-
-Automatically:
-
-- Strips binaries (`strip`)
-- Patches RPATH with `patchelf`
-- Patches shebangs in scripts
-
-Disable with:
-
-```nix
-dontPatchShebangs = true;
-dontStrip = true;
-```
-
-## The stdenv Setup Script
-
-`stdenv` provides a `setup` script that all phases source:
-
-```bash
-source $stdenv/setup
-```
-
-This sets:
-
-- `PATH` with build tools
-- Environment variables (`$out`, `$src`, `$CC`, etc.)
-- Helper functions (`configure`, `build`, `install`)
-
-## Environment Variables
-
-`stdenv` sets these automatically:
-
-```bash
-$out          # Final installation directory
-$src          # Unpacked source directory
-$stdenv       # stdenv derivation path
-$system       # Target system (e.g., x86_64-linux)
-$CC           # C compiler
-$CXX          # C++ compiler
-$LD           # Linker
-$NIX_BUILD_CORES  # Parallel jobs
-```
-
-## Customizing Phases
-
-Use `pre<Phase>` and `post<Phase>` hooks:
-
-```nix
-preBuild = ''
-  echo "About to build..."
-  # Run custom setup
-'';
-
-postInstall = ''
-  # Post-install tasks
-  chmod +x $out/bin/*
-'';
-```
-
-## Complete Example
-
-```nix
-{ stdenv, lib, fetchurl }:
-
-stdenv.mkDerivation {
-  name = "graphviz-2.50.0";
-
-  src = fetchurl {
-    url = "https://example.com/graphviz-2.50.0.tar.gz";
-    sha256 = "sha256-abc123...";
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
   };
 
-  buildInputs = [ stdenv.gd stdenv.libpng stdenv.pkg-config ];
+  outputs = { self, nixpkgs }:
+  let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in
+  {
+    packages.${system} = {
 
-  configureFlags = [
-    "--with-gd=${stdenv.gd}"
-    "--with-libpng=${stdenv.libpng}"
-  ];
+      # The "Magic" Default
+      # Nix will automatically unpack, configure, make, and install this.
+      default = pkgs.stdenv.mkDerivation {
+        name = "hello-2.12.1";
 
-  postInstall = ''
-    # Graphviz needs special post-install
-    ln -s $out/bin/dot $out/bin/dot-2.50
-  '';
+        src = pkgs.fetchurl {
+          url = "https://ftp.gnu.org/gnu/hello/hello-2.12.1.tar.gz";
+          sha256 = "sha256-jZkUKv2SV28wsM18tCqNxoCZmLxdYH2Idh9RLibH2yA=";
+        };
+      };
+    };
+  };
 }
 ```
 
-## Cross-Compilation Support
+### Run it
 
-`stdenv` supports cross-compilation through additional attributes:
+```bash
+nix build .
+
+./result/bin/hello
+# Output: Hello, world!
+```
+
+**What happened?**
+We didn't write a `buildPhase` or `installPhase`.
+
+1. **Unpack:** Nix saw `.tar.gz`, extracted it, and entered `hello-2.12.1/`.
+2. **Configure:** Nix found `./configure`, ran it with `--prefix=/nix/store/...`.
+3. **Build:** Nix found `Makefile`, ran `make`.
+4. **Install:** Nix ran `make install`.
+
+## Example 2: Customizing Phases
+
+Sometimes you need to tweak the process. You can inject commands **before** or **after** any phase using hooks (e.g., `preBuild`, `postInstall`), or override the phase entirely.
+
+Let's modify the previous example to:
+
+1. Disable the test suite (`checkPhase`).
+2. Add a custom alias after installation (`postInstall`).
 
 ```nix
-stdenv.mkDerivation {
-  name = "mypackage";
-  dontConfigure = true;
+# ...
 
-  preConfigure = ''
-    export CC=${stdenv.cc}/bin/${stdenv.stdenv.hostPlatform.config}-gcc
+custom = pkgs.stdenv.mkDerivation {
+  name = "hello-custom";
+
+  src = pkgs.fetchurl {
+    url = "https://ftp.gnu.org/gnu/hello/hello-2.12.1.tar.gz";
+    sha256 = "sha256-jZkUKv2SV28wsM18tCqNxoCZmLxdYH2Idh9RLibH2yA=";
+  };
+
+  # 1. Configuration Flags
+  # Pass arguments to the ./configure script
+  configureFlags = [ "--disable-nls" ]; # Disable Native Language Support
+
+  # 2. Control Phases
+  doCheck = false; # Skip the 'make check' phase
+
+  # 3. Inject Custom Logic
+  # This runs AFTER the standard 'make install'
+  postInstall = ''
+    echo "Running custom post-install steps..."
+    ln -s $out/bin/hello $out/bin/hi
   '';
+};
+
+# ...
+```
+
+### Run this with
+
+```bash
+nix build .#custom
+
+./result/bin/hi
+# Hello, world!
+```
+
+## Common Environment Variables
+
+Inside the build environment, `stdenv` provides several variables you should use:
+
+- `$out`: The installation path (e.g., `/nix/store/...-name`). **Always install here.**
+- `$src`: The path to the unpacked sources.
+- `$pname` / `$version`: Defined if you use those attributes in the derivation.
+
+## Controlling the Environment
+
+You can pass dependencies and flags easily:
+
+```nix
+#...
+
+pkgs.stdenv.mkDerivation {
+  # ...
+
+  # Libraries available at BUILD time (headers, etc.)
+  nativeBuildInputs = [ pkgs.pkg-config ];
+
+  # Libraries available at RUN time (linked .so files)
+  buildInputs = [ pkgs.libpng pkgs.zlib ];
+
+  # Environment variables exported to the shell
+  env = {
+    DEBUG_MODE = "1";
+  };
 }
+
+# ...
 ```
 
 ## Summary
 
-- `stdenv` provides standard build phases and utilities
-- `stdenv.mkDerivation` is the preferred way to create packages
-- Phases can be customized with hooks or full overrides
-- Environment variables like `$out` are automatically set
-- Cross-compilation is supported through platform attributes
-- The `setup` script is sourced to initialize the build environment
+1. **`stdenv` is the standard:** It provides the GCC toolchain, Make, and the default builder.
+2. **Phases are automatic:** Unpack → Patch → Configure → Build → Check → Install → Fixup.
+3. **Zero-Config:** If a project follows standard Make/Autotools conventions, `mkDerivation` + `src` is often enough.
+4. **Hooks:** Use `preX` / `postX` (e.g., `postInstall`) to run custom commands without rewriting the whole phase.
 
 ## Next Capsule
 
-In the next capsule, we'll explore **runtime dependencies**—how Nix automatically discovers what libraries and files your built program needs to run.
+Now that we can build software, how does Nix ensure it finds the right libraries at runtime? In the next capsule, we explore the magic of **Automatic Runtime Dependencies**.
 
-> [**Nix Capsules 10: Automatic Runtime Dependencies**](./10-automatic-runtime-dependencies.md)
+> **[Nix Capsules 10: Automatic Runtime Dependencies](./10-automatic-runtime-dependencies.md)**

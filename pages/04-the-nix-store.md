@@ -2,16 +2,16 @@
 
 ## Introduction
 
-In the previous capsule, we installed Nix and ran our first commands. Now we'll explore the **Nix Store**—the heart of how Nix achieves reproducibility.
+In the previous capsule, we installed Nix and ran our first commands. Now we'll explore the **Nix Store**—the heart of the system and the mechanism that makes "reproducibility" possible.
 
-The Nix Store (`/nix/store`) is where everything lives. Unlike traditional package managers that install files to `/usr/bin`, Nix stores each package in its own isolated directory with a unique hash.
+The Nix Store (`/nix/store`) is where everything lives. Unlike traditional package managers that scatter files into `/usr/bin`, `/usr/lib`, and `/etc`, Nix stores every version of every package in its own isolated directory.
 
 ## The Store Path Structure
 
-Every item in the Nix Store follows this pattern:
+Every item in the Nix Store follows a strict naming convention:
 
 ```bash
-/nix/store/[base32-hash]-[package-name]-[version]/
+/nix/store/[hash]-[name]-[version]/
 ```
 
 Examples:
@@ -19,161 +19,94 @@ Examples:
 ```bash
 /nix/store/3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x-hello-2.12.1/
 /nix/store/naxm4k6xz9fh0v3b2p8c4r7z0y5q1d9s-glibc-2.38/
-/nix/store/zyxw9876abcd1234efgh5678ijkl9012-gcc-13.2.0/
 ```
 
-## What Makes This Special
+## How the Hash is Computed (The "Input" Model)
 
-### 1. Immutable Packages
+This is the most critical concept to understand: **The hash is computed from the inputs, not the output.**
 
-Nothing in `/nix/store` is ever modified. When you "upgrade" a package, Nix creates a **new** store path with a different hash. The old version remains untouched.
+Nix calculates the hash based on:
 
-This means:
+1. The source code.
+2. The build script (instructions).
+3. The hashes of all dependencies (compiler, libraries, shell).
+4. The system architecture (e.g., `x86_64-linux`).
 
-- Multiple versions coexist without conflict
-- Rolling back is instant—just change a symlink
-- Dependencies are guaranteed to match exactly what was built
+If you change **one character** in a comment in your source code, the input hash changes. Consequently, Nix will build a **new** store path. This ensures that if a package has the same hash, it was built in the exact same way.
 
-### 2. Content-Addressing
+## Why This Matters
 
-The hash isn't random—it's computed from the **content** of what Nix builds. Two identical derivations produce the same hash.
+### 1. Coexistence (The "Dependency Hell" Solver)
 
-```bash
-# Same source + same build = same hash
-/nix/store/3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x-hello-2.12.1/
-```
+Since every variation has a unique hash, you can have multiple versions of the same library installed simultaneously.
 
-This enables:
+- `Project A` can use `openssl-1.1` (Hash A).
+- `Project B` can use `openssl-3.0` (Hash B).
+  They do not conflict because they live in different directories.
 
-- **Binary caching**: Nix knows if a path is already built
-- **Garbage collection**: Unused paths can be safely deleted
-- **Reproducibility**: Same inputs always produce same outputs
+### 2. Atomic Upgrades & Rollbacks
 
-### 3. Self-Contained Directories
+Upgrading a package doesn't overwrite files; it just installs the new path and updates a symlink. If the new version fails, you just point the symlink back to the old path.
 
-Each store path contains everything the package needs:
+### 3. Binary Caching
 
-```bash
-/nix/store/...-hello-2.12.1/
-├──  bin
-│   └── 󰡯 hello                     # The hello binary
-└──  share
-    ├──  info
-    ├──  locale
-    └──  man
-```
+Because the hash is based on inputs, Nix can check a remote server: _"Do you have the binary for hash `3sg4...`?"_ If yes, it downloads it. If no, it builds it locally.
 
-The binary references only paths within its own store directory.
+## The Dependency Graph
 
-## How Hashes Are Computed
+The Nix Store is not just a list of files; it is a **Graph**.
 
-Nix uses a multi-step process to compute store path hashes:
+When a program is built, it links to specific store paths.
 
-1. **NAR serialization**: Nix creates a NAR (Nix ARchive)—a deterministic format
-2. **SHA-256 hashing**: The NAR is hashed
-3. **Base-32 encoding**: The hash is encoded in Nix's custom base-32 alphabet
-4. **Path construction**: The encoded hash is combined with the name
+- The `hello` binary doesn't look for `/lib/libc.so.6`.
+- It looks for `/nix/store/naxm...-glibc-2.38/lib/libc.so.6`.
+
+This is called **Runtime Dependency Scanning**. Nix scans the binary for text strings that look like store paths and "locks" those dependencies to the package.
+
+## Inspecting the Store
+
+You can use standard Linux tools, but Nix provides specialized commands.
+
+### List contents
 
 ```bash
-# Conceptual process
-content → NAR format → SHA-256 → base32 → /nix/store/[hash]-name
-```
-
-The base-32 encoding uses lowercase letters and digits, ensuring valid filenames.
-
-## Verifying Store Paths
-
-Explore your local store:
-
-```bash
-# List store contents
-ls /nix/store | head -20
-
-# Find a specific package
 ls /nix/store | grep hello
-
-# Show full details
-ls -ld /nix/store/*-hello-*
 ```
 
-## The Role of Hashes
+### Inspect a specific path
 
-The hash serves multiple purposes:
-
-| Purpose                 | How Hash Helps                     |
-| ----------------------- | ---------------------------------- |
-| **Uniqueness**          | Different content = different hash |
-| **Identification**      | Hash identifies exact derivation   |
-| **Caching**             | Same hash = already built = reuse  |
-| **Dependency tracking** | References stored in derivation    |
-
-Consider what happens when `openssl` is updated:
+Use `nix path-info` to see size and details:
 
 ```bash
-Old: /nix/store/abc123-openssl-1.1.1k/     (unchanged)
-New: /nix/store/def456-openssl-3.0.0/      (new path)
+# Get the full path of the 'hello' executable currently in your path
+which hello
+# Output: /nix/store/3sg4...-hello-2.12.1/bin/hello
+
+# Check its size and closure size (total size of dependencies)
+nix path-info -Sh /nix/store/3sg4...-hello-2.12.1
 ```
 
-Any package depending on OpenSSL will reference the specific hash it was built with. Old packages keep working with the old OpenSSL.
+## Immutability
 
-## Store Path Anatomy
-
-Breaking down a store path:
+The Nix Store is **Read-Only**.
 
 ```bash
-/nix/store/3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x-hello-2.12.1/
-└──┬──────┘ └────────┬────────────────────┘ └──┬───────┘
-   │                 │                         └── Human-readable name + version
-   │                 └── Base-32 encoded hash of content
-   └── Fixed prefix
+# This will fail
+echo "hacking" > /nix/store/3sg4...-hello-2.12.1/bin/hello
+# Output: Permission denied
 ```
 
-Components:
-
-- `/nix/store/`: Fixed prefix
-- `3sg4bhqws9rx6a0b0z4q6r8c6v5m3w4x`: 32-character base-32 hash
-- `hello-2.12.1`: Human-readable name (no spaces, special chars)
-
-## Immutable Means Safe
-
-Because store paths are immutable:
-
-```bash
-# This will fail - you can't write to /nix/store
-echo "modified" > /nix/store/*-hello-2.12.1/bin/hello
-
-# Permission denied - only nix-daemon can write
-```
-
-Nix protects your system from accidental or malicious modification. Changes require going through Nix's build system.
-
-## Store Permissions
-
-The store has special permissions:
-
-```bash
-# Store is owned by nix-daemon
-ls -la /nix/store | head -5
-# drwxr-xr-x root nix  /nix/store
-
-# Regular users can read but not write
-cat /nix/store/*-hello-2.12.1/bin/hello  # Works
-echo "test" > /nix/store/*-hello-2.12.1/test  # Fails
-```
-
-Only the Nix daemon (running as `nixbld*` users) can modify the store.
+This prevents "drift." You cannot accidentally delete a library that another package relies on. The only way to modify the store is via the **Nix Daemon**, which manages builds and garbage collection.
 
 ## Summary
 
-- The Nix Store (`/nix/store`) is where packages live
-- Each package has a unique path with a content-based hash
-- Store paths are immutable—upgrades create new paths
-- Hashes enable caching, garbage collection, and reproducibility
-- Multiple versions coexist without conflict
-- Only the Nix daemon can write to the store
+- **Structure:** `/nix/store/<hash>-<name>`.
+- **Input-Addressed:** The hash is calculated from the recipe (source + deps), ensuring that "Same Inputs = Same Output."
+- **Isolation:** Dependencies are hard-coded paths; no "DLL Hell."
+- **Immutability:** You cannot manually edit files in the store.
 
 ## Next Capsule
 
-In the next capsule, we'll explore the **Nix expression language**—the syntax for writing Nix code, including types, functions, and data structures.
+Now that we understand where files go, we need to learn the language used to describe them.
 
-> [**Nix Capsules 5: Basics of Language**](./05-basics-of-language.md)
+> **[Nix Capsules 5: The Basics of the Language](./05-basics-of-language.md)**

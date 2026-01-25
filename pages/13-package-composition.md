@@ -220,4 +220,4 @@ in with pkgs;
 
 In the next capsule, we'll explore **garbage collection**—how to clean up unused store paths and manage disk space in Nix.
 
-> [**Nix Capsules 14: Garbage Collector**](./14-garbage-collector.md)
+> **[Nix Capsules 14: Garbage Collector](./14-garbage-collector.md)**
