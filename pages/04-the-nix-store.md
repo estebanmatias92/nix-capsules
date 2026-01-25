@@ -86,6 +86,16 @@ which hello
 nix path-info -Sh /nix/store/3sg4...-hello-2.12.1
 ```
 
+### Inpect a specific package's dependency graph
+
+```bash
+# Check the runtime dependencies for a package
+nix-store -q --tree /nix/store/3sg4...-hello-2.12.1
+
+# Check the build-time dependencies (derivation dependencies)
+nix-store -q --tree /nix/store/yni2...hello-2.12.1.drv
+```
+
 ## Immutability
 
 The Nix Store is **Read-Only**.

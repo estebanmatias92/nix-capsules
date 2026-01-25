@@ -147,6 +147,9 @@ $ nix-store -q --tree ./result
     ├───/nix/store/kywwgk85nl83mpf10av3bvm2khdlq5ib-libidn2-2.3.8
     │   ├───/nix/store/hlcdbvwjlzjd2x86fxghzj1gpzplccqw-libunistring-1.4.1
   ...
+
+# You can visualize it as graph in svg/png format too
+nix-store -q --graph ./result | dot -Tpng -o ./deps.png
 ```
 
 ### 2. List All Requisites
