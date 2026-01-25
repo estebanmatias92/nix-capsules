@@ -72,7 +72,7 @@ Once installed, Nix creates several key components on your system. Understanding
 4. The Profile (~/.nix-profile)
 
    Packages you install explicitly are made available to your shell via your profile.
-   - Technically, `~/.nix-profile` is a symlink to a generation in `~/.local/state/nix/profiles`. 
+   - Technically, `~/.nix-profile` is a symlink to a generation in `~/.local/state/nix/profiles`.
    - This profile directory contains a `bin/` folder, which is added to your `$PATH`.
 
 ## First Run: The Modern Way

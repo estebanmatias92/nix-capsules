@@ -143,6 +143,7 @@ The history shows the **deltas** (what changed) between versions.
 
 ```bash
 $ nix profile history
+
 Version 1 (2026-01-23):
   flake:nixpkgs#legacyPackages.x86_64-linux.hello: 2.12.2 added
   flake:nixpkgs#legacyPackages.x86_64-linux.nixd: 2.8.2 added
