@@ -141,30 +141,54 @@ Inside the build environment, `stdenv` provides several variables you should use
 - `$src`: The path to the unpacked sources.
 - `$pname` / `$version`: Defined if you use those attributes in the derivation.
 
-## Controlling the Environment
+## Managing Dependencies
 
-You can pass dependencies and flags easily:
+Nix forces a strict separation between **tools** (programs you run) and **libraries** (code you link against). This distinction exists to support cross-compilation (e.g., building ARM software on an x86 machine), but you must respect it even for standard builds.
+
+You must assign your dependencies to the correct attribute:
+
+### 1. `nativeBuildInputs` (The Tools)
+
+Dependencies that must run on the **Build Machine** (the computer compiling the code).
+
+- **What goes here:** Compilers, build systems, linters, and CLI utilities (`gcc`, `cmake`, `pkg-config`, `git`, `python3`).
+- **The Effect:** Nix adds these packages to the `$PATH` inside the build environment.
+
+### 2. `buildInputs` (The Libraries)
+
+Dependencies that must exist on the **Host Machine** (where the resulting binary will run).
+
+- **What goes here:** Libraries, headers, and runtime components (`openssl`, `zlib`, `glibc`, `libpng`).
+- **The Effect:** Nix adds these to environment variables like `$C_INCLUDE_PATH`, `$LD_LIBRARY_PATH`, and `$PKG_CONFIG_PATH` so the compiler can find them.
+
+### Example: A Complex Build
 
 ```nix
-#...
+{
+# ...
 
 pkgs.stdenv.mkDerivation {
+  name = "complex-app-1.0";
+  src = ./src;
+
+  # TOOLS: "I need to execute these commands to build the software"
+  nativeBuildInputs = [
+    pkgs.cmake       # To configure the project
+    pkgs.pkg-config  # To find libraries
+    pkgs.git         # To read version info
+  ];
+
+  # LIBRARIES: "My code needs to link against these files"
+  buildInputs = [
+    pkgs.openssl     # Provides ssl.h and libssl.so
+    pkgs.zlib        # Provides zlib.h and libz.so
+  ];
+
   # ...
-
-  # Libraries available at BUILD time (headers, etc.)
-  nativeBuildInputs = [ pkgs.pkg-config ];
-
-  # Libraries available at RUN time (linked .so files)
-  buildInputs = [ pkgs.libpng pkgs.zlib ];
-
-  # Environment variables exported to the shell
-  env = {
-    DEBUG_MODE = "1";
-  };
 }
-
-# ...
 ```
+
+> **Key Takeaway:** If a dependency fails with "command not found," you probably forgot to put it in `nativeBuildInputs`. If it fails with "header not found" or "linker error," it belongs in `buildInputs`.
 
 ## Summary
 

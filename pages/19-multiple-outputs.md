@@ -55,15 +55,15 @@ stdenv.mkDerivation {
 
 ### Output Names
 
-| Name | Convention | Contents |
-| ---- | ---------- | -------- |
-| `out` | Always present | Main package |
-| `bin` | Optional | Executables (added to PATH) |
-| `lib` | Optional | Libraries |
-| `dev` | Optional | Headers, pkg-config files |
-| `doc` | Optional | Documentation |
-| `man` | Optional | Manual pages |
-| `info` | Optional | Info documentation |
+| Name   | Convention     | Contents                    |
+| ------ | -------------- | --------------------------- |
+| `out`  | Always present | Main package                |
+| `bin`  | Optional       | Executables (added to PATH) |
+| `lib`  | Optional       | Libraries                   |
+| `dev`  | Optional       | Headers, pkg-config files   |
+| `doc`  | Optional       | Documentation               |
+| `man`  | Optional       | Manual pages                |
+| `info` | Optional       | Info documentation          |
 
 ## Environment Variables
 
@@ -257,10 +257,10 @@ Only install what you need:
 
 ```bash
 # Install only runtime
-nix profile install nixpkgs#gtk3.out
+nix profile add nixpkgs#gtk3.out
 
 # Install with development files
-nix profile install nixpkgs#gtk3.dev
+nix profile add nixpkgs#gtk3.dev
 ```
 
 ### 2. Faster Deployments

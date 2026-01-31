@@ -2,467 +2,214 @@
 
 ## Introduction
 
-In the previous capsule, we covered garbage collection. Now we'll explore **flakes**—the modern standard for organizing Nix projects with a consistent, reproducible structure.
+In Capsule 11, we created a development shell. However, we did it somewhat "loosely." In this capsule, we formalize the **Contract** of your project using **Flakes**.
 
-Flakes provide a standardized way to:
+A Flake is not magic; it is simply a standard way to write a Nix function. It transforms **Inputs** (dependencies) into **Outputs** (packages, shells, apps).
 
-- Declare dependencies (inputs)
-- Expose outputs (packages, dev shells, etc.)
-- Lock versions for reproducibility
+## The Anatomy of a Flake
 
-## What is a Flake?
-
-A flake is a Nix file (typically `flake.nix`) with two attributes:
+A `flake.nix` file is a Nix Attribute Set with two mandatory keys.
 
 ```nix
 {
-  inputs = { ... };  # Dependencies
-  outputs = { ... }; # What the flake provides
-}
-```
-
-### Flake Requirements
-
-1. Must be in a directory with a `flake.nix` file
-2. The file must evaluate to an attribute set with `inputs` and `outputs`
-3. Inputs must be valid flake references
-4. Outputs must be functions of inputs
-
-### Minimal Flake
-
-```nix
-{
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  };
-
-  outputs = { self, nixpkgs }: {
-    packages.x86_64-linux.hello = nixpkgs.legacyPackages.x86_64-linux.hello;
-  };
-}
-```
-
-This flake:
-
-- Depends on nixpkgs from GitHub
-- Exposes one package: `hello` for x86_64-linux
-
-## The inputs Attribute
-
-`inputs` declares dependencies:
-
-```nix
-inputs = {
-  nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-
-  flake-utils.url = "github:numtide/flake-utils";
-
-  rust-overlay.url = "github:oxalica/rust-overlay";
-};
-```
-
-### Input Types
-
-| Type | Example | When to Use |
-| ---- | ------- | ----------- |
-| GitHub | `github:NixOS/nixpkgs/nixos-unstable` | Standard packages |
-| Git | `git+https://example.com/repo?ref=main&rev=abc123` | Custom repositories |
-| Path | `path:/path/to/local/flake` | Local development |
-| Flake | `flake:nixpkgs` | From flake registry |
-| Tarball | `github:NixOS/nixpkgs/archive.tar.gz` | Download directly |
-
-### Input Attributes
-
-```nix
-inputs = {
-  # Branch reference
-  nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-
-  # Specific commit
-  nixpkgs.url = "github:NixOS/nixpkgs?rev=abc123def456...";
-
-  # With inputs for the flake itself
-  rust-overlay.inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-};
-```
-
-## The outputs Attribute
-
-`outputs` is a function that receives inputs and returns what the flake provides:
-
-```nix
-outputs = { self, nixpkgs, flake-utils }: {
-  # Package output
-  packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.hello;
-
-  # Development shell
-  devShells.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.mkShell {
-    buildInputs = [ nixpkgs.legacyPackages.x86_64-linux.hello ];
-  };
-};
-```
-
-### Standard Output Types
-
-| Output Type | Purpose | Key Attributes |
-| ----------- | ------- | -------------- |
-| `packages` | Buildable packages | System-specific keys |
-| `devShells` | Development environments | `default` for default shell |
-| `apps` | Runnable applications | `type = "app"`, `program` |
-| `overlays` | Nixpkgs overlays | Applied to nixpkgs |
-| `nixosModules` | NixOS configuration | Module functions |
-| `homeModules` | Home Manager modules | Module functions |
-| `formatter` | Code formatter | `packages.*.formatter` |
-
-### Complete Example
-
-```nix
-{
-  description = "My Nix project";
-
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-  };
-
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-      in
-      {
-        packages.myapp = pkgs.callPackage ./myapp.nix { };
-
-        devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            rustc
-            cargo
-            rust-analyzer
-          ];
-        };
-      }
-    );
-}
-```
-
-## The flake.lock File
-
-When you first evaluate a flake, Nix creates `flake.lock`:
-
-```json
-{
-  "version": 7,
-  "nodes": {
-    "nixpkgs": {
-      "type": "github",
-      "owner": "NixOS",
-      "repo": "nixpkgs",
-      "rev": "abc123...",
-      "narHash": "sha256-...",
-      "locked": {
-        "lastModified": 1700000000,
-        "narHash": "sha256-...",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "abc123...",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "nixos-unstable",
-        "type": "github"
-      }
-    }
-  },
-  "root": "nixpkgs"
-}
-```
-
-### Why lock Files Matter
-
-1. **Reproducibility**: Same inputs always produce same outputs
-2. **Security**: Pin to known-good commits
-3. **Caching**: Faster evaluations (no network lookups)
-4. **Auditability**: Know exactly what versions were used
-
-### Updating lock Files
-
-```bash
-# Update all inputs to latest
-nix flake update
-
-# Update specific input
-nix flake update nixpkgs
-
-# Update to specific revision
-nix flake lock --override-input nixpkgs github:NixOS/nixpkgs/23.11
-```
-
-## Using Flakes
-
-### Building Packages
-
-```bash
-# Build default package
-nix build
-
-# Build specific package
-nix build .#myapp
-
-# Build for specific system
-nix build .#myapp.x86_64-darwin
-```
-
-### Development Shells
-
-```bash
-# Enter default development shell
-nix develop
-
-# Enter specific shell
-nix develop .#myshell
-
-# Run command in shell
-nix develop .#myshell --command make test
-```
-
-### Running Apps
-
-```bash
-# Run default app
-nix run
-
-# Run specific app
-nix run .#myapp
-```
-
-## Flake References
-
-Flakes can reference other flakes:
-
-```bash
-# From command line
-nix run github:NixOS/nixpkgs#hello
-
-nix develop github:owner/repo#devshell
-
-# In flake.nix
-inputs = {
-  myflake.url = "github:owner/repo";
-};
-
-outputs = { self, myflake }: {
-  packages.default = myflake.packages.default;
-};
-```
-
-### Flake Registry
-
-The flake registry maps names to URLs:
-
-```bash
-# List registry
-nix registry list
-
-# Add custom entry
-nix registry add nixpkgs github:NixOS/nixpkgs/nixos-unstable
-
-# Remove entry
-nix registry remove nixpkgs
-```
-
-## Templates
-
-Start projects from templates:
-
-```bash
-# List templates
-nix flake templates
-
-# Use template
-nix flake init --template github:owner/repo#template-name
-```
-
-### Common Templates
-
-```bash
-# Simple template
-nix flake init
-
-# With dev shell
-nix flake init --template github:numtide/flake-templates#devshells
-```
-
-## Best Practices
-
-### 1. Always Include Description
-
-```nix
-{
-  description = "My application with useful description";
-
+  # 1. INPUTS: "What do I need?"
+  # Sources, libraries, and other flakes.
   inputs = { ... };
-  outputs = { ... };
+
+  # 2. OUTPUTS: "What do I produce?"
+  # A function that takes the downloaded inputs and returns artifacts.
+  outputs = { self, nixpkgs, ... }: { ... };
 }
 ```
 
-### 2. Use Specific Revisions for Production
+### 1. The Inputs (The Source of Truth)
+
+Inputs are resources your project needs. While `github` is the default, Nix can fetch from almost anywhere.
 
 ```nix
 inputs = {
-  # Good for production
-  nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
+  # 1. Standard GitHub (Flakes)
+  nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
 
-  # Or for unstable with lock file
-  nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  # 2. Local Paths (Crucial for development)
+  # Allows you to depend on a library on your own disk.
+  my-lib.url = "path:/home/user/projects/my-lib";
+
+  # 3. Non-Flake Sources (The 'flake = false' trick)
+  # Useful to fetch raw source code (like a C project) that doesn't have a flake.nix.
+  zsh-src = {
+    url = "github:zsh-users/zsh/master";
+    flake = false;
+  };
 };
 ```
 
-### 3. Pin Critical Dependencies
+> **Pro Tip:** When you use `flake = false`, the input isn't treated as a Nix library. Instead, it is treated as a **directory path** to the source code, which you can then pass to a builder (like `stdenv.mkDerivation`).
 
-```nix
-inputs = {
-  # Pin to specific revision for reproducibility
-  mylib.url = "github:owner/mylib?rev=abc123def456...";
-};
-```
+### 2. The Outputs (The Schema)
 
-### 4. Use flake-utils for Multi-System
+This is where the structure becomes strict. Unlike a random `.nix` file where you can return anything, a Flake expects specific attributes targeted at specific architectures.
 
-```nix
-outputs = { self, nixpkgs, flake-utils }:
-  flake-utils.lib.eachDefaultSystem (system:
-    let
-      pkgs = nixpkgs.legacyPackages.${system};
-    in
-    {
-      packages.default = pkgs.hello;
-    }
-  );
-```
+The schema follows this pattern:
+`outputType.<system>.<name>`
 
-### 5. Commit Both Files
+Example:
+`packages.x86_64-linux.default`
 
-```bash
-git add flake.nix flake.lock
-git commit -m "Add flake.nix with locked dependencies"
-```
+## Step 1: The Raw Flake (Glass Box)
 
-## Common Patterns
+Let's write a flake _without_ any helper libraries to understand the raw schema. We will define a **Package** (from Capsule 09) and a **Shell** (from Capsule 11).
 
-### Pattern 1: Simple Package
+**File:** `flake.nix`
 
 ```nix
 {
-  description = "My package";
+  description = "My First Raw Flake";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-
-  outputs = { self, nixpkgs }: {
-    packages.x86_64-linux.default =
-      nixpkgs.legacyPackages.x86_64-linux.hello;
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
   };
-}
-```
-
-### Pattern 2: Development Environment
-
-```nix
-{
-  description = "My dev environment";
-
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-
-  outputs = { self, nixpkgs }: {
-    devShells.x86_64-linux.default =
-      nixpkgs.legacyPackages.x86_64-linux.mkShell {
-        buildInputs = [
-          nixpkgs.legacyPackages.x86_64-linux.gcc
-          nixpkgs.legacyPackages.x86_64-linux.make
-        ];
-      };
-  };
-}
-```
-
-### Pattern 3: Multiple Packages
-
-```nix
-{
-  description = "My packages";
-
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }:
-    let
-      pkgs = nixpkgs.legacyPackages.x86_64-linux;
-    in
-    {
-      packages.x86_64-linux.package-a = pkgs.hello;
-      packages.x86_64-linux.package-b = pkgs.figlet;
+  let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in
+  {
+    # 1. PACKAGES: Artifacts we can build
+    # Schema: packages.<system>.<name>
+    packages.${system}.default = pkgs.hello;
+
+    # 2. DEV SHELLS: Environments we can enter
+    # Schema: devShells.<system>.<name>
+    devShells.${system}.default = pkgs.mkShell {
+      packages = [ pkgs.cowsay ];
+      shellHook = ''
+        echo "Welcome to the Flake!"
+      '';
     };
-}
-```
-
-### Pattern 4: With Overlays
-
-```nix
-{
-  description = "Project with overlay";
-
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  my-overlay.url = "github:owner/my-overlay";
-
-  outputs = { self, nixpkgs, my-overlay }: {
-    overlays.default = my-overlay.default;
-
-    packages.x86_64-linux.default =
-      (import nixpkgs {
-        system = "x86_64-linux";
-        overlays = [ my-overlay.default ];
-      }).mypackage;
   };
 }
 ```
 
-## Troubleshooting
+### Inspecting the Flake
 
-### "flake is not allowed"
-
-Flakes aren't enabled. Add to `~/.config/nix/nix.conf`:
-
-```ini
-experimental-features = nix-command flakes
-```
-
-### "input has inconsistent version"
-
-The lock file is out of sync:
+Nix provides a command to view what a flake provides:
 
 ```bash
-nix flake update
+$ nix flake show
+
+git+file:///...
+├───devShells
+│   └───x86_64-linux
+│       └───default: development environment 'nix-shell'
+└───packages
+    └───x86_64-linux
+        └───default: package 'hello-2.12.1'
 ```
 
-### "cannot evaluate flake"
+## Step 2: The "Git Trap" (Fail-First)
 
-There's an error in your `flake.nix`. Check syntax:
+Flakes enforce **Purity**. To see this in action, we need to be inside a git repository.
+
+1. Initialize git and track **only** the flake file:
 
 ```bash
-nix eval --file flake.nix
+git init
+git add flake.nix
+```
+
+_(Note: We are deliberately NOT adding other files yet)._ 2. Create a simple script and reference it:
+
+```bash
+echo "echo I am hidden" > hidden.sh
+
+# Do not forget to make it executable
+chmod +x hidden.sh
+```
+
+Add it to your `shellHook` in `flake.nix`:
+
+```nix
+shellHook = ''
+  bash ./hidden.sh
+'';
+```
+
+1. Run `nix develop`.
+
+**The Failure:**
+Now you will get an error saying the file does not exist (`No such file or directory`).
+
+**The Reason:**
+Since `hidden.sh` is not in the git staging area, Nix **cannot see it**. It copied only `flake.nix` to the store.
+
+**The Fix:**
+Add the file to git so Nix knows it is part of the project source.
+
+```bash
+git add hidden.sh
+```
+
+## The Lockfile (`flake.lock`)
+
+Run `nix develop`. You will notice a new file appears: `flake.lock`.
+
+Open it. You will see it has resolved `github:nixos/nixpkgs` to a specific Git commit hash (e.g., `rev: 5f3a...`).
+
+- **Before Lock:** "Use the unstable branch." (Mutable, dangerous).
+- **After Lock:** "Use exactly commit `5f3a...`." (Immutable, reproducible).
+
+This file ensures that if you share this project with a friend 6 months from now, they will use the **exact same version** of GCC, Python, and Glibc that you used today.
+
+## Step 3: Reducing Boilerplate (Automation)
+
+In "Step 1", we hardcoded `system = "x86_64-linux"`. But what if we want this to work on a MacBook (`aarch64-darwin`) too?
+
+We would have to copy-paste the code for every architecture. To avoid this, we use helper functions. You can use the popular library `flake-utils`, or write a simple helper function yourself.
+
+Here is the standard "For All Systems" pattern:
+
+```nix
+{
+  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+
+  outputs = { self, nixpkgs }:
+  let
+    # List of systems we support
+    systems = [ "x86_64-linux" "aarch64-darwin" ];
+
+    # A helper to run a function for each system
+    forAllSystems = function:
+      nixpkgs.lib.genAttrs systems (system:
+        function nixpkgs.legacyPackages.${system}
+      );
+  in
+  {
+    # Now we just describe the logic once!
+    packages = forAllSystems (pkgs: {
+      default = pkgs.hello;
+    });
+
+    devShells = forAllSystems (pkgs: {
+      default = pkgs.mkShell {
+        packages = [ pkgs.go ];
+      };
+    });
+  };
+}
 ```
 
 ## Summary
 
-- Flakes provide a standardized project structure
-- `inputs` declare dependencies, `outputs` expose results
-- `flake.lock` ensures reproducibility
-- Use `nix build`, `nix develop`, `nix run` with flakes
-- Standard output types: packages, devShells, apps, overlays
-- Pin dependencies for production, use lock file for CI
+- **Inputs:** Sources defined by URLs.
+- **Outputs:** A function returning a strict schema (`type.system.name`).
+- **Purity:** Nix only sees files tracked by Git.
+- **Lockfile:** Pins inputs to exact commits for reproducibility.
+- **Multi-Architecture:** We use helper functions (like `genAttrs` or `flake-utils`) to generate outputs for Linux and macOS simultaneously.
 
 ## Next Capsule
 
-In the next capsule, we'll explore **package composition patterns**—how to organize multiple packages and their dependencies efficiently.
+Now that we have the structure, we need to talk about **Package Composition**. How do we combine multiple packages? How do we pass one package as an input to another?
 
 > **[Nix Capsules 13: Package Composition](./13-package-composition.md)**

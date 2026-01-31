@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Welcome to the ninth Nix capsule. In the previous capsule, we used generic builders to package software. But how does Nix know what a built program needs at **runtime**? In this capsule, we'll explore Nix's automatic runtime dependency detection—a powerful feature that ensures programs have all their libraries available.
+Welcome to the tenth Nix capsule. In the previous capsule, we used generic builders to package software. But how does Nix know what a built program needs at **runtime**? In this capsule, we'll explore Nix's automatic runtime dependency detection—a powerful feature that ensures programs have all their libraries available.
 
 ## Build vs Runtime Dependencies
 
@@ -169,10 +169,17 @@ $ nix-store -qR ./result
 
 ### 3. Check Total Size
 
-To measure the real disk usage of the package plus all its dependencies (crucial for deployment planning):
+To measure the real disk usage of the package plus all its dependencies (runtime closure)(crucial for deployment planning):
 
 ```bash
-# Calculate total size of the closure
+# Exact closure size based on derivation graph metadata
+$ nix path-info -Sh ./result
+
+/nix/store/pmrqz67p7lvjm99y0bwkn1yyq1i73cn4-hello         31.3 MiB
+```
+
+```bash
+# Clousere physical size based on filesystem traversal
 $ du -hc $(nix-store -qR ./result) | tail -n1
 
 33M     total
