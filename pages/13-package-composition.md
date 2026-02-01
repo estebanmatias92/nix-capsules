@@ -2,222 +2,167 @@
 
 ## Introduction
 
-In the previous capsule, we explored flake architecture. Now we'll learn **package composition**—how to organize multiple packages and their dependencies efficiently.
+In Capsule 12, we built a Flake with a single package defined inline. But real software is complex. You will likely have multiple files: a C library here, a Python script there, and a main application that ties them together.
 
-As your project grows beyond one package, you need a way to compose them. The inputs pattern and callPackage provide flexible, modular approaches.
+**Package Composition** is the art of wiring these dependencies together efficiently.
 
-## The Single Repository Pattern
+## The "Import" Trap (What NOT to do)
 
-Nix follows a **single repository** pattern: all package definitions live in one place (like nixpkgs). This enables:
+When beginners split their code into multiple files, they often do this:
 
-- Consistent dependency resolution across packages
-- Easy overriding of any package
-- Shared tooling and conventions
+**File:** `my-package.nix` (BAD PATTERN)
 
 ```nix
-# A simple repository structure
-{
-  hello = import ./hello.nix;
-  graphviz = import ./graphviz.nix;
-}
-```
-
-## The Inputs Design Pattern
-
-Each package should declare its dependencies as inputs, rather than importing nixpkgs directly:
-
-**graphviz.nix:**
-
-```nix
-{ mkDerivation, gd, libpng, pkg-config }:
-
-mkDerivation {
-  name = "graphviz";
-  src = ./graphviz.tar.gz;
-
-  buildInputs = [
-    gd
-    libpng
-    pkg-config
-  ];
-}
-```
-
-The package is a function that receives its dependencies as parameters.
-
-## Passing Inputs to Packages
-
-Combine packages in a top-level expression:
-
-**default.nix:**
-
-```nix
+# ⚠️ Do not do this!
 let
-  nixpkgs = import <nixpkgs> { };
-  mkDerivation = nixpkgs.stdenv.mkDerivation;
+  # Violates the Flake Lockfile!
+  pkgs = import <nixpkgs> {};
 in
-{
-  hello = import ./hello.nix {
-    inherit mkDerivation;
-  };
-  graphviz = import ./graphviz.nix {
-    inherit mkDerivation gd libpng pkg-config;
-    gd = nixpkgs.gd;
-    libpng = nixpkgs.libpng;
-    pkg-config = nixpkgs.pkg-config;
-  };
+pkgs.stdenv.mkDerivation {
+  name = "my-package";
+  buildInputs = [ pkgs.gcc ];
+  # ...
 }
 ```
 
-This decouples package definitions from the repository structure.
+**Why is this bad?**
 
-## Benefits of Input Passing
+1. **Breaks Purity:** This file imports `nixpkgs` directly, ignoring the locked version in your `flake.lock`.
+2. **Hard to Test:** You cannot easily swap `pkgs.gcc` for a different compiler version to test compatibility.
 
-1. **Testability**: Easy to substitute mock dependencies
-2. **Customization**: Pass different versions without modifying packages
-3. **Reusability**: Use packages in different contexts
-4. **Clarity**: Dependencies are explicit and visible
+## Step 1: The Inputs Pattern (The Solution)
 
-## The callPackage Design Pattern
+To fix this, we follow a simple rule: **Every Nix file should be a Function.**
 
-With the inputs pattern, we repeat parameter names. `callPackage` eliminates this duplication:
+Instead of _importing_ dependencies, the file should _ask_ for them as arguments.
+
+**File:** `my-package.nix` (GOOD PATTERN)
 
 ```nix
-let
-  pkgs = import <nixpkgs> { };
+# We declare exactly what we need
+{ stdenv, fetchurl, lib, gcc }:
 
-  callPackage = path: args:
-    let
-      f = import path;
-      params = builtins.functionArgs f;
-      autoArgs = builtins.intersectAttrs params pkgs;
-    in
-      f (autoArgs // args);
-in
-{
-  graphviz = callPackage ./graphviz.nix { };
+stdenv.mkDerivation {
+  name = "my-package";
+  # ... use stdenv, gcc, etc.
 }
 ```
 
-Now `callPackage` automatically passes `mkDerivation`, `gd`, etc. from `pkgs`.
+Now this file is "pure." It doesn't know where `gcc` comes from; it just waits to receive it.
 
-## Built-in callPackage
+## Step 2: Manual Wiring (The Pain)
 
-Nixpkgs provides `callPackage` as part of its standard library:
-
-```nix
-pkgs.callPackage ./graphviz.nix { }
-```
-
-## Overriding Arguments
-
-Pass overrides as the second argument:
+Now we need to call this function in our `flake.nix`.
 
 ```nix
-graphviz = pkgs.callPackage ./graphviz.nix {
-  gd = customGd;
+outputs = { self, nixpkgs }: {
+  packages.x86_64-linux.default = let
+    pkgs = nixpkgs.legacyPackages.x86_64-linux;
+
+    # Import the function
+    packageFunc = import ./my-package.nix;
+  in
+    # MANUALLY pass every single argument
+    packageFunc {
+      stdenv = pkgs.stdenv;
+      fetchurl = pkgs.fetchurl;
+      lib = pkgs.lib;
+      gcc = pkgs.gcc;
+    };
 };
 ```
 
-The override takes precedence over auto-passed values.
+This works, but it is tedious. If you add `cowsay` to `my-package.nix`, you have to update the arguments in `flake.nix` too. This repetition violates the DRY (Don't Repeat Yourself) principle.
 
-## Default Arguments
+## Step 3: Automation (`callPackage`)
 
-Provide defaults in the package definition:
+Nix provides a magic function called `callPackage`.
+
+It looks at your function arguments (e.g., `{ stdenv, gcc }`), searches for attributes with the **same name** in `pkgs`, and passes them automatically.
+
+**File:** `flake.nix` (Refactored)
 
 ```nix
-{ mkDerivation, gdSupport ? true, gd ? null }:
+outputs = { self, nixpkgs }: {
+  packages.x86_64-linux.default = let
+    pkgs = nixpkgs.legacyPackages.x86_64-linux;
+  in
+    # MAGIC:
+    pkgs.callPackage ./my-package.nix { };
+};
+```
 
-mkDerivation {
-  name = "graphviz";
-  src = ./graphviz.tar.gz;
+That's it. `callPackage` did the wiring for you.
 
-  buildInputs = lib.optionals gdSupport (lib.optionals (gd != null) [ gd ]);
+### How does it know?
+
+`callPackage` uses runtime reflection (`builtins.functionArgs`) to read the header of `my-package.nix`.
+
+- It sees you need `gcc`.
+- It looks inside `pkgs`.
+- It finds `pkgs.gcc`.
+- It injects it.
+
+## Step 4: Overriding Defaults
+
+Sometimes `pkgs` has the wrong version of a dependency. `callPackage` accepts a second argument: an **Override Set**.
+
+Suppose `my-package.nix` needs `python`, but `pkgs.python` defaults to Python 3. You need Python 2 (for legacy reasons).
+
+```nix
+pkgs.callPackage ./my-package.nix {
+  # Explicitly override the 'python' argument
+  python = pkgs.python2;
 }
 ```
 
-## Understanding functionArgs
+Any argument you provide here takes precedence over the auto-discovery.
 
-Inspect what parameters a function expects:
+## Custom Composition (Chaining)
+
+What if you have **two** local packages, and one depends on the other?
+
+**File:** `backend.nix`
 
 ```nix
-nix-repl> f = { a, b ? 2 }: a + b
-nix-repl> builtins.functionArgs f
-{ a = true; b = false; }
+{ stdenv }: stdenv.mkDerivation { name = "backend"; ... }
 ```
 
-## Using intersectAttrs
-
-`callPackage` uses `intersectAttrs` to match parameters:
+**File:** `frontend.nix`
 
 ```nix
-nix-repl> params = { a = true; b = true; c = true; }
-nix-repl> pkgs = { a = 1; b = 2; d = 4; }
-nix-repl> builtins.intersectAttrs params pkgs
-{ a = 1; b = 2; }
+# This needs the backend!
+{ stdenv, backend }: stdenv.mkDerivation { ... }
 ```
 
-Only matching attributes are passed.
-
-## Flake-based callPackage
-
-With flakes, use `callPackage` from the outputs:
+**File:** `flake.nix`
 
 ```nix
-outputs = { self, nixpkgs }: let
+packages.x86_64-linux = let
   pkgs = nixpkgs.legacyPackages.x86_64-linux;
-  callPackage = path: pkgs.lib.callPackageWith pkgs path;
-in {
-  packages.default = callPackage ./hello.nix { };
+in rec {
+  # 1. Build the backend
+  backend = pkgs.callPackage ./backend.nix { };
+
+  # 2. Build the frontend
+  # Since 'backend' is not in standard nixpkgs, callPackage won't find it.
+  # We must pass it manually.
+  frontend = pkgs.callPackage ./frontend.nix {
+    backend = backend;
+    # Or simply: inherit backend;
+  };
 };
 ```
-
-## Conditional Inputs
-
-Use Nix's conditionals to make features optional:
-
-```nix
-{ mkDerivation, gdSupport ? true, gd }:
-
-mkDerivation {
-  name = "graphviz";
-  src = ./graphviz.tar.gz;
-
-  buildInputs = [
-    (lib.optional gdSupport gd)
-  ];
-}
-```
-
-## The with Expression
-
-Reduce repetition with `with`:
-
-```nix
-let pkgs = import <nixpkgs> { };
-in with pkgs;
-{
-  hello = stdenv.mkDerivation { ... };
-  graphviz = stdenv.mkDerivation { ... };
-}
-```
-
-## Best Practices
-
-1. **Explicit inputs**: List all dependencies as function parameters
-2. **Avoid imports in packages**: Pass everything from the repository
-3. **Use defaults**: Provide sensible defaults for optional inputs
-4. **Use callPackage**: Reduces boilerplate while maintaining explicitness
 
 ## Summary
 
-- The inputs pattern makes packages functions that receive dependencies
-- `callPackage` automatically passes matching arguments
-- Repository expressions compose packages with their inputs
-- Use defaults for optional parameters
+- **The Problem:** Hardcoding imports breaks Flake purity.
+- **The Pattern:** Make every file a function that takes arguments (`{ stdenv, dep1 }`).
+- **The Tool:** Use `pkgs.callPackage ./file.nix {}` to automatically fill those arguments from the package set.
+- **The Override:** Pass explicit arguments in the second set `{}` to override defaults or inject custom local packages.
 
 ## Next Capsule
 
-In the next capsule, we'll explore **garbage collection**—how to clean up unused store paths and manage disk space in Nix.
+We are creating packages, but we are also leaving a mess. Every build creates new store paths. How do we clean up the old ones?
 
-> **[Nix Capsules 14: Garbage Collector](./14-garbage-collector.md)**
+> **[Nix Capsules 14: The Garbage Collector](./14-garbage-collector.md)**

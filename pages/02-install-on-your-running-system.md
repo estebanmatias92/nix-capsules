@@ -119,7 +119,7 @@ Because Nix is self-contained in `/nix`, uninstalling it is mostly about removin
 
 ## Summary
 
-You now have a functional Nix installation with the **Daemon** active and **nix-commands** plus **Flakes** enabled. You can run software ephemerally (`nix run`), and your system remains clean.
+You now have a functional Nix installation with the **Daemon** active and **nix-command** plus **Flakes** enabled. You can run software ephemerally (`nix run`), and your system remains clean.
 
 ## Next Capsule
 
