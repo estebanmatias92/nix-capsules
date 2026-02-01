@@ -2,164 +2,226 @@
 
 ## Introduction
 
-In Capsule 12, we built a Flake with a single package defined inline. But real software is complex. You will likely have multiple files: a C library here, a Python script there, and a main application that ties them together.
+In Capsule 12, we built a Flake with a single package defined inline. But real software is complex. You will likely have multiple files: a backend, a frontend, a library, and a main application that ties them together.
 
 **Package Composition** is the art of wiring these dependencies together efficiently.
 
-## The "Import" Trap (What NOT to do)
+## The "Import" Trap (Fail-First)
 
-When beginners split their code into multiple files, they often do this:
+When moving code to a separate file, your instinct might be to do this:
 
 **File:** `my-package.nix` (BAD PATTERN)
 
 ```nix
 # ⚠️ Do not do this!
 let
-  # Violates the Flake Lockfile!
+  # VIOLATION: This ignores your flake.lock and fetches a new nixpkgs!
+  # It creates a "Franken-build" where dependencies don't match your system.
   pkgs = import <nixpkgs> {};
 in
 pkgs.stdenv.mkDerivation {
   name = "my-package";
-  buildInputs = [ pkgs.gcc ];
   # ...
 }
 ```
 
 **Why is this bad?**
 
-1. **Breaks Purity:** This file imports `nixpkgs` directly, ignoring the locked version in your `flake.lock`.
-2. **Hard to Test:** You cannot easily swap `pkgs.gcc` for a different compiler version to test compatibility.
+1. **Impure:** It downloads a new version of `nixpkgs`, ignoring the one pinned in your `flake.lock`.
+2. **Untestable:** You cannot swap `pkgs.gcc` for a different version if you want to test compatibility.
 
-## Step 1: The Inputs Pattern (The Solution)
+## Step 1: The Function Pattern (The Solution)
 
 To fix this, we follow a simple rule: **Every Nix file should be a Function.**
+It should not _import_ dependencies; it should _ask_ for them as arguments.
 
-Instead of _importing_ dependencies, the file should _ask_ for them as arguments.
+Create this file in your project directory:
 
 **File:** `my-package.nix` (GOOD PATTERN)
 
 ```nix
-# We declare exactly what we need
-{ stdenv, fetchurl, lib, gcc }:
+# We declare exactly what we need.
+# Note: We don't ask for 'pkgs', we ask for specific tools.
+{ stdenv, lib }:
 
 stdenv.mkDerivation {
-  name = "my-package";
-  # ... use stdenv, gcc, etc.
+  name = "my-composed-package";
+
+  # Hands-On Tip: We use dontUnpack so we don't need a source file for this demo.
+  dontUnpack = true;
+
+  installPhase = ''
+    mkdir -p $out
+    echo "I was composed successfully!" > $out/success.txt
+  '';
 }
 ```
 
-Now this file is "pure." It doesn't know where `gcc` comes from; it just waits to receive it.
+Now this file is "pure." It doesn't know where `stdenv` comes from; it just waits to receive it.
 
 ## Step 2: Manual Wiring (The Pain)
 
 Now we need to call this function in our `flake.nix`.
 
-```nix
-outputs = { self, nixpkgs }: {
-  packages.x86_64-linux.default = let
-    pkgs = nixpkgs.legacyPackages.x86_64-linux;
+**File:** `flake.nix`
 
-    # Import the function
+```nix
+{
+  description = "Manual Composition Demo";
+
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+
+    # 1. Import the function
     packageFunc = import ./my-package.nix;
-  in
-    # MANUALLY pass every single argument
-    packageFunc {
-      stdenv = pkgs.stdenv;
-      fetchurl = pkgs.fetchurl;
-      lib = pkgs.lib;
-      gcc = pkgs.gcc;
-    };
-};
+  in {
+    packages.${system}.default =
+      # 2. PAIN: We must manually pass every single argument.
+      # If we add 'gcc' to my-package.nix later, this line breaks.
+      packageFunc {
+        stdenv = pkgs.stdenv;
+        lib = pkgs.lib;
+      };
+  };
+}
 ```
 
-This works, but it is tedious. If you add `cowsay` to `my-package.nix`, you have to update the arguments in `flake.nix` too. This repetition violates the DRY (Don't Repeat Yourself) principle.
+**Try it:**
+Run `nix build`. It works, but imagine doing this for a package with 20 dependencies. It violates the **DRY** (Don't Repeat Yourself) principle.
 
-## Step 3: Automation (`callPackage`)
+## Step 3: The Mechanism (Glass Box)
 
-Nix provides a magic function called `callPackage`.
+How can we automate this? Nix has a superpower called **Reflection**. It can inspect its own functions to see what arguments they require.
 
-It looks at your function arguments (e.g., `{ stdenv, gcc }`), searches for attributes with the **same name** in `pkgs`, and passes them automatically.
+Before using the "magic" tool, let's see how it works under the hood using the REPL.
 
-**File:** `flake.nix` (Refactored)
+```bash
+nix repl
+```
 
 ```nix
-outputs = { self, nixpkgs }: {
-  packages.x86_64-linux.default = let
-    pkgs = nixpkgs.legacyPackages.x86_64-linux;
-  in
-    # MAGIC:
-    pkgs.callPackage ./my-package.nix { };
-};
+# Define a function with one mandatory arg (a) and one optional arg (b)
+nix-repl> myFunc = { a, b ? 10 }: a + b
+
+# Ask Nix: "What arguments does myFunc need?"
+nix-repl> builtins.functionArgs myFunc
+{ a = false; b = true; }
 ```
 
-That's it. `callPackage` did the wiring for you.
+- `false` means: "Mandatory argument" (has no default value).
+- `true` means: "Optional argument" (has a default value `?`).
 
-### How does it know?
+This built-in function is the secret sauce. A helper script can look at `my-package.nix`, see it needs `stdenv`, look in `pkgs` for an attribute named `stdenv`, and pass it automatically.
 
-`callPackage` uses runtime reflection (`builtins.functionArgs`) to read the header of `my-package.nix`.
+## Step 4: Automation (`callPackage`)
 
-- It sees you need `gcc`.
-- It looks inside `pkgs`.
-- It finds `pkgs.gcc`.
-- It injects it.
+Nixpkgs provides that helper script. It is called `callPackage`.
 
-## Step 4: Overriding Defaults
+**Refactor your `flake.nix`:**
 
-Sometimes `pkgs` has the wrong version of a dependency. `callPackage` accepts a second argument: an **Override Set**.
+```nix
+{
+  description = "Automatic Composition Demo";
 
-Suppose `my-package.nix` needs `python`, but `pkgs.python` defaults to Python 3. You need Python 2 (for legacy reasons).
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in {
+    packages.${system}.default =
+      # MAGIC SOLVED: callPackage uses 'functionArgs' to inspect './my-package.nix'
+      # and fills the arguments from 'pkgs' automatically.
+      pkgs.callPackage ./my-package.nix { };
+  };
+}
+```
+
+**Try it:**
+Run `nix build`. It still works, but the code is much cleaner.
+
+### Overriding Defaults
+
+What if `my-package.nix` asks for `python`, but you need a specific version? You can explicitly override the auto-discovery in the second argument of `callPackage`:
 
 ```nix
 pkgs.callPackage ./my-package.nix {
-  # Explicitly override the 'python' argument
+  # "Ignore what is in pkgs, use this instead"
   python = pkgs.python2;
 }
 ```
 
-Any argument you provide here takes precedence over the auto-discovery.
+## Step 5: Composition (Chaining Packages)
 
-## Custom Composition (Chaining)
+Real projects have chains of dependencies: `Frontend` depends on `Backend`. Since `Backend` is your own local package (not in nixpkgs), `callPackage` won't find it automatically. You must inject it.
 
-What if you have **two** local packages, and one depends on the other?
+Let's create two dummy packages to demonstrate this chain.
 
 **File:** `backend.nix`
 
 ```nix
-{ stdenv }: stdenv.mkDerivation { name = "backend"; ... }
+{ stdenv }:
+stdenv.mkDerivation {
+  name = "backend";
+  dontUnpack = true;
+  installPhase = "mkdir -p $out/bin; echo 'backend-binary' > $out/bin/server";
+}
 ```
 
 **File:** `frontend.nix`
 
 ```nix
-# This needs the backend!
-{ stdenv, backend }: stdenv.mkDerivation { ... }
+# This package explicitly asks for 'backend'
+{ stdenv, backend }:
+stdenv.mkDerivation {
+  name = "frontend";
+  dontUnpack = true;
+  buildInputs = [ backend ];
+  installPhase = "mkdir -p $out; ln -s ${backend}/bin/server $out/server-link";
+}
 ```
 
-**File:** `flake.nix`
+**File:** `flake.nix` (Final Version)
 
 ```nix
-packages.x86_64-linux = let
-  pkgs = nixpkgs.legacyPackages.x86_64-linux;
-in rec {
-  # 1. Build the backend
-  backend = pkgs.callPackage ./backend.nix { };
+{
+  description = "Chained Composition";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-  # 2. Build the frontend
-  # Since 'backend' is not in standard nixpkgs, callPackage won't find it.
-  # We must pass it manually.
-  frontend = pkgs.callPackage ./frontend.nix {
-    backend = backend;
-    # Or simply: inherit backend;
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in {
+    packages.${system} = rec {
+      # 1. Build the backend (Standard)
+      backend = pkgs.callPackage ./backend.nix { };
+
+      # 2. Build the frontend (Custom Injection)
+      # callPackage won't find 'backend' in pkgs, so we pass it manually.
+      frontend = pkgs.callPackage ./frontend.nix {
+        backend = backend;
+      };
+
+      default = frontend;
+    };
   };
-};
+}
 ```
+
+**Try it:**
+Run `nix build`.
+Check the result: `ls -l result/server-link`. It points to the backend store path!
 
 ## Summary
 
-- **The Problem:** Hardcoding imports breaks Flake purity.
-- **The Pattern:** Make every file a function that takes arguments (`{ stdenv, dep1 }`).
-- **The Tool:** Use `pkgs.callPackage ./file.nix {}` to automatically fill those arguments from the package set.
-- **The Override:** Pass explicit arguments in the second set `{}` to override defaults or inject custom local packages.
+- **The Trap:** `import <nixpkgs>` inside files creates impurity. Avoid it.
+- **The Fix:** Make every file a function (`{ inputs... }: ...`).
+- **The Mechanism:** Nix uses `builtins.functionArgs` to reflect on your code and find dependency names.
+- **The Tool:** `callPackage` uses that reflection to auto-wire dependencies.
+- **Composition:** Use `callPackage` to wire your own local packages together.
 
 ## Next Capsule
 

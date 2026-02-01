@@ -1,6 +1,6 @@
-# The Nix Capsules Manifesto (v2.1)
+# The Nix Capsules Manifesto (v2.2)
 
-> **_"Deconstruct, Fail, Then Automate"_**
+> _"Deconstruct, Fail, Then Automate"_
 
 ## I. Core Philosophy
 
@@ -41,26 +41,21 @@
 
 The content must flow linearly through these distinct identities:
 
-### 1. The Consumer (Caps 01-04)
+1. **The Consumer (Caps 01-04):**
+   - Focus: Using the Store, running binaries, understanding paths and hashes.
 
-- Focus: Using the Store, running binaries, understanding paths and hashes.
+2. **The Linguist (Caps 05-06):**
+   - Focus: Syntax, Sets, Functions. Only the subset required for Flakes.
 
-### 1. The Linguist (Caps 05-06)
+3. **The Builder (Caps 07-10):**
+   - Focus: `derivation` `stdenv` Runtime Dependencies.
+   - _Strict separation of Build vs. Host._
 
-- Focus: Syntax, Sets, Functions. Only the subset required for Flakes.
+4. **The Developer (Caps 11):**
+   - Focus: Ephemeral environments (`devShells`).
 
-### 1. The Builder (Caps 07-10)
-
-- Focus: `derivation` `stdenv` Runtime Dependencies.
-- _Strict separation of Build vs. Host._
-
-### 1. The Developer (Caps 11)
-
-- Focus: Ephemeral environments (`devShells`).
-
-### 1. The Architect (Caps 12-13+)
-
-- Focus: Project structure, Flakes, Composition, `callPackage`.
+5. **The Architect (Caps 12-13+):**
+   - Focus: Project structure, Flakes, Composition, `callPackage`.
 
 ---
 
@@ -88,8 +83,9 @@ The content must flow linearly through these distinct identities:
 
 ### 1. Code Snippets
 
-- Must be self-contained or explicitly reference a previous state.
-- Must use **comments** to explain _why_, not just _what_.
+- **Executability (The "Hands-On" Rule):** Any example intended for the user to run must be **syntactically complete and buildable**. Do not use undefined placeholders (like `# ...` or `src = ./.;` without content) that cause generic syntax errors, unless the crash is a specific, intended lesson of the "Fail-First" pedagogy.
+- **Self-Contained:** Snippets must include all necessary context (e.g., `inputs`) or explicitly reference a previous file the user has already created.
+- **Commentary:** Must use **comments** to explain _why_, not just _what_.
 
 ### 2. Visual Cues
 
@@ -98,4 +94,4 @@ The content must flow linearly through these distinct identities:
 
 ### 3. "Manifesto Check" (The Final Step)
 
-- Before finalizing a capsule, ask: _Did I explain the magic? Did I let the user fail first? Is this modern Nix?_
+- Before finalizing a capsule, ask: _Did I explain the magic? Did I let the user fail first? Is this modern Nix? Does the code actually run?_
