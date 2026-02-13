@@ -2,221 +2,164 @@
 
 ## Introduction
 
-Welcome to the eleventh Nix capsule. In the previous capsule, we explored package composition patterns. Now we'll explore the **garbage collector**—Nix's mechanism for removing unused store paths and reclaiming disk space.
+In the previous capsules, we've been building and downloading software. Every time you run `nix build`, `nix run`, or `nix develop`, items are added to the **Nix Store** (`/nix/store`).
 
-Everything in Nix goes to `/nix/store`. Over time, this can grow large. The garbage collector identifies and removes paths that are no longer needed.
+Unlike traditional package managers that overwrite files (e.g., upgrading `python 3.9` to `3.10` deletes `3.9`), Nix **never deletes anything** unless you explicitly ask it to. This creates a "time machine," but it also fills up your hard drive.
 
-## How Garbage Collection Works
+In this capsule, we will learn how to safely reclaim space using the **Garbage Collector (GC)**.
 
-Nix uses **GC roots** to determine what's still needed. A path is a GC root if:
+## The Concept: Reachability
 
-- It's a user environment (`nix profile` generations)
-- It's been explicitly added as a GC root
-- It's referenced by another GC root
+Nix uses a memory management concept called **Tracing Garbage Collection** (similar to Java or Go), but applied to the filesystem.
 
-Everything else is eligible for collection.
+1. **GC Roots:** These are the "anchors." Files that are explicitly "in use."
+2. **The Graph:** Nix traces all dependencies of the roots.
+3. **Garbage:** Any store path that is **not reachable** from a GC Root is deleted.
 
-## Listing GC Roots
+## Step 1: The "Unkillable" Package (Fail-First)
+
+Let's prove how this works. We will build a package, try to delete it, and fail.
+
+**1. Build a package:**
+Create a simple flake or use a previous one.
 
 ```bash
-# Show all GC roots (legacy command - no modern equivalent)
-nix-store --gc --list-roots
-
-# Or list GC root directory
-ls /nix/var/nix/gcroot
+# Build GNU Hello
+nix build nixpkgs#hello
 ```
 
-Roots appear as symlinks in `/nix/var/nix/gcroot` or similar locations.
+This creates a symlink named `result` in your current directory pointing to the store.
 
-## Running the Garbage Collector
-
-The unified `nix` command provides basic garbage collection:
+**2. Verify existence:**
 
 ```bash
-# Collect garbage (moves to trash first)
+readlink -f result
+# Output: /nix/store/mn5...-hello-2.12.1
+```
+
+**3. Try to clean up:**
+Run the garbage collector.
+
+```bash
 nix store gc
-
-# Just collect, don't delete
-nix store gc --max-free $((10 * 1024**3))  # Keep 10GB free
 ```
 
-For comprehensive cleanup including old profile generations, use `nix-collect-garbage`:
+**4. Check again:**
+Does the path still exist?
 
 ```bash
-# Delete old generations and collect garbage (recommended approach)
-nix-collect-garbage --delete-old
-
-# Delete generations older than 30 days
-nix-collect-garbage --delete-older-than 30d
-
-# Preview what would be deleted
-nix-collect-garbage --delete-old --dry-run
+ls -d /nix/store/mn5...-hello-2.12.1
+# It is STILL there!
 ```
 
-The `nix-collect-garbage` command is a wrapper that:
+**Why did it fail?**
+Nix didn't delete it because you are still "using" it. The `result` symlink in your folder is a **GC Root**. As long as that symlink exists, Nix guarantees the store path exists.
 
-1. Removes old profile generations
-2. Runs garbage collection to delete unreferenced paths
+## Step 2: Inspection (Glass Box)
 
-## Understanding Generations
+How does Nix know about your `result` link? It doesn't scan your whole hard drive; that would be too slow.
 
-Nix profiles track **generations**—each installation creates a new generation:
+When you ran `nix build`, Nix registered a "temporary root" or an "auto root". Let's look under the hood.
 
 ```bash
-# List profile generations
-nix profile history /nix/var/nix/profiles/default
-
-# Or with the new CLI
-nix profile list
+# List the registered GC roots directory
+ls -l /nix/var/nix/gcroots/auto/
 ```
 
-Generations are automatically GC roots. Old generations keep old packages alive.
+You will see symlinks that point back to your project directory:
 
-## Removing Old Generations
+```text
+lrwxrwxrwx ... 12345 -> /home/user/my-project/result
 
-Modern Nix provides `nix profile wipe-history` for managing profile generations:
+```
+
+**The Chain of Life:**
+`/nix/var/nix/gcroots/...` → `~/my-project/result` → `/nix/store/...-hello`
+
+Because the chain is unbroken, the package lives.
+
+## Step 3: Deleting the Root
+
+To delete the package, we must break the chain.
+
+**1. Remove the user link:**
 
 ```bash
-# Delete all old generations, keep current
+rm ./result
+```
+
+**2. Run GC again:**
+
+```bash
+nix store gc
+```
+
+_Note: You might see "0 bytes freed" if other things (like your shell history or profiles) are still using `hello`. This is normal in Nix—shared dependencies are only deleted when **no one** uses them._
+
+## Managing Profiles (The History)
+
+The most common source of "disk bloat" is your profile history. Every time you run `nix profile upgrade`, the old versions are kept for rollback.
+
+### Inspect History
+
+```bash
+nix profile history
+```
+
+### Clean History
+
+To save space, you must delete old generations. This removes them as GC Roots.
+
+```bash
+# Delete all generations except the current active one
 nix profile wipe-history
 
 # Delete generations older than 7 days
 nix profile wipe-history --older-than 7d
-
-# Preview what would be deleted
-nix profile wipe-history --dry-run
-
-# Specific profile
-nix profile wipe-history --profile /nix/var/nix/profiles/default --older-than 30d
 ```
 
-## Profile Management
+**Warning:** Once you wipe history, you cannot `nix profile rollback` to those versions anymore.
 
-Modern Nix uses `nix profile` for user environments:
+## The Nuclear Option (`nix-collect-garbage`)
+
+While `nix store gc` cleans up unreferenced paths, it doesn't automatically remove old profile generations.
+
+There is a legacy (but standard) utility that combines "wipe history" and "collect garbage" into one command.
 
 ```bash
-# List installed packages
-nix profile list
-
-# History of changes
-nix profile history
-
-# Rollback to previous generation
-nix profile rollback
-
-# Rollback to specific generation
-nix profile rollback --to 5
+# 1. Delete old generations (profile & system)
+# 2. Run Garbage Collection
+nix-collect-garbage -d
 ```
 
-## Ephemeral Garbage Collection
+Use this when you want to free up maximum space.
 
-Builds from flakes create temporary GC roots:
+## Visualizing Disk Usage
+
+Before deleting things, it's useful to know what is taking up space.
+We use `nix path-info` with the `-S` (closure size) flag.
 
 ```bash
-# Build without creating persistent GC root
-nix build .#package --no-link
+# Check the size of the current folder's derivation
+nix path-info -Sh .#
 
-# Build and create GC root (default)
-nix build .#package
+# Check the size of a specific tool
+nix path-info -Sh nixpkgs#firefox
 ```
-
-The `result` symlink is a GC root. Remove it to allow collection.
-
-## Finding Large Packages
-
-Identify space hogs:
-
-```bash
-# List packages by size
-nix path-info --json --all | jq 'map({path: .key, size: .value.narSize}) | sort_by(.size) | reverse | .[0:20]'
-
-# Find packages not referenced by any profile (legacy command)
-nix-store --gc --list-dead
-```
-
-## Pruning Unused Store Paths
-
-For comprehensive cleanup, `nix-collect-garbage` handles all cleanup tasks:
-
-```bash
-# Combined cleanup (recommended)
-nix-collect-garbage --delete-old
-
-# Legacy commands (still available)
-nix-store --gc --delete-dead    # Delete unreferenced paths
-nix-store --gc --empty-trash    # Empty the trash
-```
-
-## The trash Directory
-
-Deleted paths move to `/nix/store/trash` first:
-
-```bash
-# See what's in the trash
-ls -la /nix/store/trash/
-
-# Permanently delete trash contents
-nix-store --gc --empty-trash
-```
-
-This prevents accidental deletion—if you realize you needed something, you can restore it before emptying the trash.
-
-## Automatic GC Scheduling
-
-Nix can run GC automatically:
-
-```bash
-# Check GC schedule
-systemctl status nix-gc
-
-# Configure in /etc/nix/nix.conf
-# gc = true
-# gc-interval = 7
-```
-
-On NixOS, configure in `configuration.nix`:
-
-```nix
-nix.gc = {
-  enabled = true;
-  interval = "7d";
-  options = "--delete-older-than 30d";
-};
-```
-
-## Managing Build Caches
-
-Build results can accumulate:
-
-```bash
-# Clean build caches
-nix-collect-garbage --delete-old
-
-# Clear s3 binary caches
-nix store delete --recursive s3://my-bucket/*
-```
-
-## Reproducibility Considerations
-
-Be careful when deleting:
-
-- **Don't delete** paths you're actively developing
-- **Do delete** old package versions you're no longer using
-- **Use** `nix-collect-garbage --delete-old` for effective cleanup
-
-For reproducible systems, keep multiple generations for rollback capability.
 
 ## Summary
 
-- GC roots mark paths as "in use"—everything else is garbage
-- Use `nix-collect-garbage --delete-old` for comprehensive cleanup
-- Use `nix profile wipe-history --older-than Nd` for time-based cleanup
-- Use `nix store gc` for basic garbage collection only
-- Profile generations are automatically GC roots
-- The trash provides safety against accidental deletion
+- **GC Roots:** Symlinks that tell Nix "I need this file."
+- **Safety:** Nix never deletes a file reachable from a root.
+- **The `result` link:** `nix build` creates a GC root in your folder. Delete the link to free the store path.
+- **Generations:** Old profile versions hold onto old packages.
+- **Cleanup:**
+
+1. `nix profile wipe-history` (Remove old roots).
+2. `nix store gc` (Delete unreferenced files).
 
 ## Next Capsule
 
-In the next capsule, we'll dive deep into **nixpkgs**—the central package collection that provides thousands of packages and utilities for Nix.
+We have explored the Nix command line and language extensively. Now it is time to look at the massive library that powers it all.
 
 > **[Nix Capsules 15: Nixpkgs Deep Dive](./15-nixpkgs-deep-dive.md)**

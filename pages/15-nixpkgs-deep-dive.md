@@ -2,437 +2,201 @@
 
 ## Introduction
 
-In the previous capsule, we covered package composition patterns. Now we'll dive deep into **nixpkgs**—the central package collection that provides thousands of packages and utilities for Nix.
+In the previous capsule, we learned how to clean up the store. Now we will look at the source of all our software: **Nixpkgs**.
 
-Understanding nixpkgs parameters and customization is essential for creating your own packages and customizing the package set.
+So far, we have accessed packages using `nixpkgs.legacyPackages.x86_64-linux`. This is convenient, but it gives you the **default** version of every package.
 
-## What is Nixpkgs?
+What if you need to:
 
-Nixpkgs is:
+1. Install software with an "Unfree" license (like Slack, Discord, or Unrar)?
+2. Apply a security patch to a system library?
+3. Add your own custom package to the main set?
 
-- A **collection** of over 80,000 Nix packages
-- A **function** that creates a package set for a specific system
-- **The default source** for most Nix packages
+To do this, you must stop treating Nixpkgs as a static list and start treating it as a **Function**.
 
-When you write:
+## The "Unfree" Trap (Fail-First)
 
-```nix
-pkgs = import <nixpkgs> { };
-```
+Nix is strict about software licenses. By default, it refuses to build non-free software.
 
-You're calling the nixpkgs function with default parameters.
+Let's try to build `unrar`, a common tool with a non-free license.
 
-## The nixpkgs Function
-
-The nixpkgs repository is actually a function that returns an attribute set:
+**File:** `flake.nix`
 
 ```nix
-import <nixpkgs> {
-  system = builtins.currentSystem;
-  config = { };
-  overlays = [ ];
-}
-```
-
-### Parameters
-
-| Parameter | Type | Default | Purpose |
-| --------- | ---- | ------- | ------- |
-| `system` | string | `builtins.currentSystem` | Target platform |
-| `config` | attrset | `{}` | Package configuration |
-| `overlays` | list | `[]` | Modifications to apply |
-
-### System Parameter
-
-Specify which platform's packages to use:
-
-```nix
-# Use default system (x86_64-linux on most Linux)
-pkgs = import <nixpkgs> { };
-
-# Explicit system
-pkgs = import <nixpkgs> {
-  system = "x86_64-linux";
-};
-
-# Cross-compile to aarch64-darwin
-pkgs = import <nixpkgs> {
-  system = "aarch64-darwin";
-};
-
-# Check your current system
-nix-repl> builtins.currentSystem
-"x86_64-linux"
-```
-
-### Available Systems
-
-```nix
-"x86_64-linux"
-"aarch64-linux"
-"x86_64-darwin"
-"aarch64-darwin"
-```
-
-## The config Parameter
-
-Pass configuration options that packages can read:
-
-```nix
-pkgs = import <nixpkgs> {
-  config = {
-    allowUnfree = true;
-    permittedInsecurePackages = [
-      "openssl-1.1.1k"
-    ];
-  };
-};
-```
-
-### Common Config Options
-
-| Option | Type | Purpose |
-| ------ | ---- | ------- |
-| `allowUnfree` | bool | Build packages with restrictive licenses |
-| `allowBroken` | bool | Build packages marked as broken |
-| `permittedInsecurePackages` | list | Allow specific insecure versions |
-| `enableGitHubFeatureFlags` | bool | Enable GitHub-specific features |
-
-### Checking Config
-
-```nix
-nix-repl> pkgs.config.allowUnfree
-true
-```
-
-### User Configuration File
-
-Nixpkgs reads `~/.config/nixpkgs/config.nix` automatically:
-
-```nix
-# ~/.config/nixpkgs/config.nix
 {
-  allowUnfree = true;
-  allowBroken = false;
+  description = "Unfree Trap";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }: {
+    # We try to use the default legacyPackages
+    packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.unrar;
+  };
 }
 ```
 
-This applies to all nixpkgs imports unless overridden.
+**Try it:**
+Run `nix build`.
 
-## Overlays
+**The Failure:**
+You will see a large error message:
+`error: Package ‘unrar-6.x.x’ in ... has an unfree license (‘unrar’), refusing to evaluate.`
 
-Overlays modify the package set before returning it. An overlay is a function:
+**Why?**
+You might be tempted to google "how to allow unfree nix" and find tutorials telling you to edit `~/.config/nixpkgs/config.nix`.
+**Do not do this.** Flakes are **pure**. They ignore your user configuration files to ensure that if it builds on your machine, it builds on mine.
+
+You must configure this _inside_ the Flake.
+
+## Step 1: The Nixpkgs Function (Glass Box)
+
+The input `nixpkgs` is not just a directory of files; it contains a function definition that builds the package set.
+
+When you use `legacyPackages`, Nix calls this function with defaults. To change the defaults, we must call it manually using `import`.
+
+The signature looks like this:
+
+```nix
+import nixpkgs {
+  system = "x86_64-linux";  # Mandatory: Which architecture?
+  config = { ... };         # Optional: Flags like allowUnfree
+  overlays = [ ... ];       # Optional: Custom modifications
+}
+```
+
+## Step 2: Configuring Nixpkgs
+
+Let's fix our Flake by explicitly importing `nixpkgs` with the configuration we need.
+
+**File:** `flake.nix` (Refactored)
+
+```nix
+{
+  description = "Configured Nixpkgs";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+
+    # We instantiate our own version of pkgs
+    pkgs = import nixpkgs {
+      inherit system;
+      config = {
+        allowUnfree = true;
+      };
+    };
+  in {
+    # Now we use OUR 'pkgs', not the default 'legacyPackages'
+    packages.${system}.default = pkgs.unrar;
+  };
+}
+```
+
+**Try it:**
+Run `nix build`. It works!
+
+## Step 3: Overlays (Modifying the Set)
+
+Configuration flags are limited. What if you want to change the version of a package or inject a new one?
+
+We use **Overlays**.
+An overlay is a function that takes two arguments:
+
+1. `final`: The final package set (after all modifications).
+2. `prev`: The package set before this modification.
+
+It returns a set of packages to **merge** into the main set.
+
+### The Syntax
 
 ```nix
 final: prev: {
-  # Changes to apply
+  # We can add new packages
+  my-script = prev.writeScriptBin "hi" "echo hi";
+
+  # We can override existing ones
+  hello = prev.hello.overrideAttrs (old: {
+    # Changing the source or build steps
+    doCheck = false;
+  });
 }
 ```
 
-Where:
+### Applying an Overlay
 
-- `prev`: Package set before this overlay
-- `final`: Package set after all overlays (including this one)
+Let's modify our Flake to inject a custom package into `pkgs`.
 
-### Basic Overlay
-
-```nix
-pkgs = import <nixpkgs> {
-  overlays = [
-    (final: prev: {
-      # Add a new package
-      mypackage = final.callPackage ./mypackage.nix { };
-
-      # Modify an existing package
-      hello = prev.hello.override {
-        enableDebug = true;
-      };
-    })
-  ];
-};
-```
-
-### Using Overlays in Flakes
-
-Flakes provide cleaner overlay support:
+**File:** `flake.nix`
 
 ```nix
 {
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    my-overlay.url = "github:user/my-overlay";
-  };
+  description = "Overlay Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-  outputs = { self, nixpkgs, my-overlay }: {
-    packages.x86_64-linux = let
-      pkgs = import nixpkgs {
-        system = "x86_64-linux";
-        overlays = [ my-overlay ];
-      };
-    in {
-      inherit (pkgs) mypackage;
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+
+    # Define the overlay
+    myOverlay = final: prev: {
+      # Let's override 'hello' to disable its tests (doCheck)
+      hello = prev.hello.overrideAttrs (old: {
+        doCheck = false;
+      });
+
+      # Let's add a custom tool
+      my-tool = prev.writeShellScriptBin "my-tool" ''
+        echo "I am now part of pkgs!"
+      '';
+    };
+
+    # Apply the overlay during import
+    pkgs = import nixpkgs {
+      inherit system;
+      overlays = [ myOverlay ];
+    };
+
+  in {
+    packages.${system} = {
+      default = pkgs.my-tool;
+      customHello = pkgs.hello;
     };
   };
 }
 ```
 
-### Overlays as Default Export
+**Try it:**
 
-Nix overlays can export as `default`:
+1. `nix run .#default` -> Prints "I am now part of pkgs!"
+2. `nix build .#customHello` -> Builds hello (skipping tests).
 
-```nix
-# In my-overlay/flake.nix
-{
-  outputs = { self }: {
-    defaultOverlay = final: prev: {
-      mypackage = ...;
-    };
-  };
-}
+## Inspecting with REPL
 
-# In your flake.nix
-{
-  inputs.my-overlay.url = "github:user/my-overlay";
-
-  outputs = { self, nixpkgs, my-overlay }: {
-    overlays.default = my-overlay.default;
-  };
-}
-```
-
-### Overlay Order
-
-Overlays are applied in order—later overlays override earlier ones:
-
-```nix
-pkgs = import <nixpkgs> {
-  overlays = [
-    (final: prev: { foo = 1; })
-    (final: prev: { foo = 2; })  # This wins
-  ];
-};
-
-pkgs.foo  # Returns 2
-```
-
-## The Fixed-Point Pattern
-
-Nixpkgs uses a fixed-point (let-rec) pattern internally:
-
-```nix
-pkgs = self: {
-  a = 1;
-  b = self.a + 2;  # References self.a
-}
-```
-
-Overlays work by providing a new function that gets the previous packages as input:
-
-```nix
-(final: prev: {
-  # prev.hello exists
-  myhello = prev.hello.override { ... };
-})
-```
-
-## packageOverrides (Legacy)
-
-Older nixpkgs used `packageOverrides`:
-
-```nix
-{ pkgs ? import <nixpkgs> { } }:
-
-pkgs.extend (final: prev: {
-  graphviz = prev.graphviz.override { withXorg = false; };
-})
-```
-
-Modern nixpkgs prefers overlays, but `packageOverrides` still works.
-
-## Per-User Overrides
-
-Create user-specific overrides in `~/.config/nixpkgs/config.nix`:
-
-```nix
-{
-  packageOverrides = pkgs: {
-    # Use unstable versions for specific packages
-    neovim = pkgs.neovim.unstable;
-  };
-}
-```
-
-## Modifying Packages
-
-### Using override
-
-Change package attributes:
-
-```nix
-pkgs.hello.override {
-  enableDebug = true;
-}
-```
-
-### Using overrideAttrs
-
-Change build attributes:
-
-```nix
-pkgs.hello.overrideAttrs (oldAttrs: {
-  NIX_CFLAGS_COMPILE = "-O3";
-})
-```
-
-### Overriding Dependencies
-
-```nix
-# Use a custom openssl
-pkgs.curl.override {
-  openssl = myCustomOpenssl;
-}
-```
-
-## Package Information
-
-Packages have useful attributes:
-
-```nix
-pkgs.hello.meta.description    # "A program that prints a friendly greeting"
-pkgs.hello.version             # "2.12.1"
-pkgs.hello.src                 # The source derivation
-pkgs.hello.outPath             # Store path when built
-pkgs.hello.passthru            # Custom attributes passed through
-```
-
-### Meta Attributes
-
-```nix
-{
-  meta = {
-    description = "Short description";
-    longDescription = "Longer description for UI";
-    homepage = "https://example.com";
-    license = lib.licenses.mit;
-    maintainers = [ lib.maintainers.jdoe ];
-    platforms = lib.platforms.linux;
-    broken = false;
-  };
-}
-```
-
-## Platform-Specific Packages
-
-Some packages only exist on certain platforms:
-
-```nix
-# Only on Linux
-pkgs.linuxPackages_latest.kernel
-
-# Only on Darwin
-pkgs.darwin.apple_sdk.frameworks
-```
-
-### Checking Platforms
-
-```nix
-pkgs.stdenv.isLinux
-pkgs.stdenv.isDarwin
-pkgs.stdenv.isx86_64
-```
-
-### Platform Filters
-
-```nix
-# Only build on Linux
-lib.filter (v: v.meta.platforms or lib.platforms.all)[*] == lib.platforms.linux)
-```
-
-## Accessing Nixpkgs Lib
-
-Nixpkgs includes a utility library:
-
-```nix
-pkgs.lib.attrNames pkgs          # List all attributes
-pkgs.lib.map (x: x + 1) [1 2 3]  # Apply function
-pkgs.lib.concatMap ...           # Map and concatenate
-pkgs.lib.flatten [ [1] [2 3] ]   # Flatten lists
-```
-
-### Common lib Functions
-
-| Function | Purpose |
-| -------- | ------- |
-| `lib.attrNames` | List attribute names |
-| `lib.map` | Apply function to list |
-| `lib.filter` | Filter list |
-| `lib.optional` | Conditionally include element |
-| `lib.optionals` | Multiple optional elements |
-| `lib.genAttrs` | Generate attributes |
-| `lib.recursiveUpdate` | Deep merge attrsets |
-
-## Using Different nixpkgs Versions
-
-### Stable Channel
-
-```nix
-inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-```
-
-### Unstable
-
-```nix
-inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-```
-
-### Specific Commit
-
-```nix
-inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=abc123def456...";
-```
-
-## Troubleshooting
-
-### Package Not Found
-
-```nix
-# Check if package exists
-nix-instantiate -E '(import <nixpkgs> {}).hello' --eval
-
-# List available packages
-nix-env -qaP nixpkgs | grep hello
-```
-
-### Wrong Platform
+You can use the REPL to inspect your configured `pkgs` set.
 
 ```bash
-# Error: attribute 'hello' missing
-# Check current system
-nix-instantiate -E 'builtins.currentSystem'
+nix repl
 ```
 
-### Config Not Applied
-
 ```nix
-# Config must be passed to import
-pkgs = import <nixpkgs> {
-  config.allowUnfree = true;  # Not from file
-};
+# Load the flake
+nix-repl> :lf .
+
+# Check config
+nix-repl> packages.x86_64-linux.default.src.url or "Custom Package"
+"Custom Package"
+
+nix-repl> packages.x86_64-linux.customHello.src.url or "Custom Package"
+"mirror://gnu/hello/hello-2.12.2.tar.gz"
 ```
 
 ## Summary
 
-- nixpkgs is a function accepting `system`, `config`, and `overlays`
-- `system` selects the target platform
-- `config` provides package configuration options
-- Overlays modify the package set before use
-- Use `override` and `overrideAttrs` for package changes
-- Overlays are applied in order—later ones win
-- User config at `~/.config/nixpkgs/config.nix` applies everywhere
-- Packages have meta attributes for metadata
+- **Legacy vs Modern:** `legacyPackages` uses defaults. `import nixpkgs` allows customization.
+- **Purity:** Global config (`~/.config/nixpkgs`) is ignored in Flakes. You must use `config.allowUnfree = true` inside the flake.
+- **The Function:** `import nixpkgs { system, config, overlays }`.
+- **Overlays:** The standard way to inject or modify packages (`final: prev: { ... }`).
 
 ## Next Capsule
 
-In the next capsule, we'll explore **advanced override patterns**—how to use `makeOverridable`, chain overrides, and understand the fixed-point pattern.
+In the next capsule, we will take overrides to the next level. We will learn how to change a package's inputs (e.g., compile `git` with a different version of `openssl`) using `.override`.
 
 > **[Nix Capsules 16: Advanced Overrides](./16-advanced-overrides.md)**
