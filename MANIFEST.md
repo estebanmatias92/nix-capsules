@@ -83,7 +83,7 @@ The content must flow linearly through these distinct identities:
 
 ### 1. Code Snippets
 
-- **Executability (The "Hands-On" Rule):** Any example intended for the user to run must be **syntactically complete and buildable**. Do not use undefined placeholders (like `# ...` or `src = ./.;` without content) that cause generic syntax errors, unless the crash is a specific, intended lesson of the "Fail-First" pedagogy.
+- **Executability (The "Hands-On" Rule):** Any example intended for the user to run must be **syntactically complete and buildable**. Do not use undefined placeholders (like `# ...` or `src = ./.;` without content) that cause generic syntax errors, unless the crash is a specific, intended lesson of the "Fail-First" pedagogy. **Every code example must be copy-paste runnable** - users should be able to paste it and try it immediately, whether it fails intentionally (pedagogically) or succeeds.
 - **Self-Contained:** Snippets must include all necessary context (e.g., `inputs`) or explicitly reference a previous file the user has already created.
 - **Commentary:** Must use **comments** to explain _why_, not just _what_.
 

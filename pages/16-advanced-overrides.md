@@ -2,227 +2,242 @@
 
 ## Introduction
 
-In the previous capsule, we explored nixpkgs deep dive. Now we'll explore **advanced override patterns**—using `makeOverridable`, chaining overrides, and understanding the fixed-point pattern.
+In the previous capsules, we learned how to use `callPackage` to wire dependencies together and how to configure `nixpkgs`.
 
-Sometimes you want to create a package variant without rewriting the entire definition. The override pattern adds an `override` method to the package that lets you change input attributes.
+But what happens when a package in `nixpkgs` (or your own local package) is _almost_ perfect, but you need to change one small detail? You don't want to copy-paste the entire source code into a new file just to change a URL or a build flag.
 
-## The Override Concept
+Nix solves this with **Overrides**.
 
-**Without override:**
+## The `.override` Trap (Fail-First)
+
+When beginners discover overrides, they often try to do this:
 
 ```nix
-# Must reimport with different inputs
-graphvizNoX = import ./graphviz.nix {
-  inherit mkDerivation;
-  gdSupport = false;
+# ⚠️ This will fail!
+my-custom-hello = pkgs.hello.override {
+  name = "hello-custom-version";
+  doCheck = false;
 };
+
 ```
 
-**With override:**
+**The Failure:**
+If you run this, Nix will throw an error:
+`error: function 'anonymous lambda' called with unexpected argument 'name'`
+
+**Why is this bad?**
+You are confusing the **Nix Function** with the **Derivation**.
+
+- `name` and `doCheck` are attributes of `stdenv.mkDerivation`.
+- `.override` does **not** change derivation attributes; it changes the arguments passed to the Nix function at the top of the file (e.g., `{ stdenv, fetchurl, ... }:`).
+
+To master overrides, you must understand the difference between `.override` and `.overrideAttrs`.
+
+## Step 1: The Base Package (Our Target)
+
+Let's create a functional, self-contained package to experiment on. It takes a custom argument (`enableGreeting`) to toggle its behavior.
+
+**File:** `my-app.nix`
 
 ```nix
-# Start from the existing package and override
-graphvizNoX = graphviz.override { gdSupport = false; };
-```
+# THE FUNCTION HEADER (Modified by .override)
+{ stdenv, enableGreeting ? true }:
 
-## Implementing makeOverridable
+# THE DERIVATION (Modified by .overrideAttrs)
+stdenv.mkDerivation {
+  name = "my-app";
+  dontUnpack = true;
 
-Nixpkgs provides `lib.makeOverridable` to add override capability:
+  # We use the function argument to change the build logic
+  greeting = if enableGreeting then "Hello, Nix!" else "...Silence...";
 
-```nix
-lib.makeOverridable = f: origArgs:
-  let
-    res = f origArgs;
-  in
-    res // {
-      override = newArgs:
-        f (origArgs // newArgs);
-    };
-```
-
-This wraps a function to return the result plus an `override` method.
-
-## Usage Example
-
-**make-overridable.nix:**
-
-```nix
-{ mkDerivation, gdSupport ? true, gd ? null }:
-
-lib.makeOverridable (args:
-  mkDerivation ({
-    name = "graphviz";
-    src = ./graphviz.tar.gz;
-
-    buildInputs = lib.optionals gdSupport (
-      lib.optionals (gd != null) [ gd ]
-    );
-  } // args)
-) { inherit mkDerivation gd gdSupport; }
-```
-
-The outer `makeOverridable` call wraps the package definition.
-
-## Chaining Overrides
-
-Override multiple attributes sequentially:
-
-```nix
-let
-  base = import ./graphviz.nix { inherit mkDerivation; };
-  noGd = base.override { gdSupport = false; };
-  customName = noGd.override { name = "graphviz-custom"; };
-in
-  customName
-```
-
-Each `override` call creates a new derivation with the merged arguments.
-
-## Recursive Overrides
-
-The result of `override` is also overridable:
-
-```nix
-let
-  graphviz = import ./graphviz.nix { inherit mkDerivation; };
-  variant = graphviz.override { gdSupport = false; }
-                    .override { name = "my-graphviz"; };
-in
-  variant
-```
-
-## Overriding in a Repository
-
-Use overrides when composing packages:
-
-```nix
-let
-  pkgs = import <nixpkgs> { };
-  callPackage = pkgs.lib.callPackageWith pkgs;
-
-  graphviz = callPackage ./graphviz.nix { };
-
-  # Override for a specific use case
-  graphvizForCI = graphviz.override {
-    doCheck = false;  # Skip tests in CI
-  };
-in
-{
-  inherit graphviz graphvizForCI;
+  installPhase = ''
+    mkdir -p $out/bin
+    echo "echo '$greeting'" > $out/bin/my-app
+    chmod +x $out/bin/my-app
+  '';
 }
+
 ```
 
-## Override and buildInputs
+## Step 2: Using `.override` (Function Arguments)
 
-Override can change dependencies:
+If we want to change `enableGreeting` to `false`, we use `.override`.
 
-```nix
-# Use a custom version of gd
-graphvizCustomGd = graphviz.override {
-  gd = myCustomGd;
-};
-```
+When you use `pkgs.callPackage ./my-app.nix {}`, Nix automatically attaches a special `.override` method to the resulting package.
 
-The entire dependency graph updates to use the new `gd`.
+### Complete Example
 
-## Practical Use Cases
-
-1. **Disable tests**: `.override { doCheck = false; }`
-2. **Custom flags**: `.override { configureFlags = [...]; }`
-3. **Patch versions**: `.override { version = "2.50"; src = ...; }`
-4. **Runtime dependencies**: `.override { additionalLibs = [ extraLib ]; }`
-
-## Override vs callPackage
-
-| Aspect | callPackage | override |
-| ------ | ----------- | -------- |
-| When used | Initial composition | Post-creation modification |
-| Parameters | Function parameters | Derivation attributes |
-| Flexibility | Explicit arguments | Any overridable attribute |
-| Use case | Setting up dependencies | Tweaking existing package |
-
-Both patterns are useful—use `callPackage` for initial composition, `override` for variants.
-
-## Flake-based Overrides
-
-With flakes, overrides work the same way on the returned packages:
+**File:** `flake.nix`
 
 ```nix
 {
-  outputs = { self, nixpkgs }: let
-    pkgs = nixpkgs.legacyPackages.x86_64-linux;
-  in {
-    packages.x86_64-linux = {
-      graphviz = pkgs.graphviz;
-      graphvizNoX = pkgs.graphviz.override { gdSupport = false; };
+  description = "Override Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      packages.${system}.default = (pkgs.callPackage ./my-app.nix { }).override {
+        enableGreeting = false;
+      };
     };
-  };
 }
+
 ```
 
-## The Fixed-Point Pattern
+**Try it:**
 
-Nixpkgs uses a fixed-point pattern internally for package definitions:
+```bash
+nix run
+# Output: ...Silence...
 
-```nix
-pkgs = self: {
-  a = 1;
-  b = self.a + 2;
-}
 ```
 
-Packages can reference each other through `self`. Overlays extend this pattern:
+> **Didactic Check:** Can I use `.override` to change `stdenv`?
+> Yes! Because `stdenv` is listed in the function header `{ stdenv, enableGreeting ? true }:`, you could pass a different compiler (e.g., `.override { stdenv = pkgs.clangStdenv; }`).
+
+## Step 3: Using `.overrideAttrs` (Derivation Attributes)
+
+What if we want to change the `name` of the package or add a new phase, but the function header doesn't have an argument for it?
+
+We use `.overrideAttrs`. This method takes a function that receives the `old` attributes and returns the new ones.
+
+### Complete Example
+
+**File:** `flake.nix`
 
 ```nix
-final: prev: {
-  # prev is the package set before this overlay
-  # final is the package set after all overlays
-  mypackage = final.callPackage ./mypackage.nix { };
+{
+  description = "overrideAttrs Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      packages.${system}.default = (pkgs.callPackage ./my-app.nix { }).overrideAttrs (old: {
+        name = "${old.name}-customized";
+
+        # We append to the existing installPhase
+        postInstall = ''
+          echo "echo 'Extra Line'" >> $out/bin/my-app
+        '';
+      });
+    };
 }
+
 ```
 
-## Advanced: Custom Override Functions
+**Try it:**
 
-Create custom override functions for complex scenarios:
+```bash
+nix run
+# Output: Hello, Nix!
+#         Extra Line
+
+```
+
+## Step 4: The Mechanism (Glass Box)
+
+How does a package magically get these `.override` methods? It is not a feature of the Nix language; it is a feature of the `nixpkgs` library.
+
+Let's inspect our package attributes using `nix eval`:
+
+```bash
+nix eval --json .#default.override 2>/dev/null | head -c 200
+# Shows the override function is present
+
+```
+
+Or inspect the derivation directly:
+
+```bash
+nix derivation show .#default | grep -A5 '"override"'
+# Shows the override mechanism in the derivation
+
+```
+
+1. **`overrideAttrs`**: This is attached natively by `stdenv.mkDerivation`. Every standard package has it.
+2. **`override`**: This is attached by `callPackage` using a wrapper called `lib.makeOverridable`.
+
+If you were to write the `makeOverridable` logic yourself, it looks like this:
 
 ```nix
-# Custom override that only allows certain attributes
-makeRestrictedOverride = allowedAttrs: f: origArgs:
+# How callPackage makes your function overridable (Simplified)
+lib.makeOverridable = func: originalArgs:
   let
-    restrictedArgs = builtins.intersectAttrs allowedAttrs origArgs;
+    result = func originalArgs;
   in
-    (lib.makeOverridable f origArgs).override restrictedArgs;
+    result // {
+      override = newArgs: func (originalArgs // newArgs);
+    };
 
-# Usage
-myOverride = makeRestrictedOverride [ "version" "doCheck" ] (args:
-  stdenv.mkDerivation args
-);
 ```
 
-## Overriding Multiple Outputs
+It simply saves your original arguments, and when you call `.override`, it merges the new arguments and calls the function again!
 
-For packages with multiple outputs:
+## Step 5: Chaining Overrides
+
+You can chain multiple `.override` and `.overrideAttrs` calls to create exactly the variant you need.
+
+**File:** `flake.nix`
 
 ```nix
-# Only override the dev output
-gtk3.overrideOutputs (outputs: {
-  dev = outputs.dev.overrideAttrs (old: {
-    NIX_CFLAGS_COMPILE = "-I${customInclude}";
-  });
-});
+{
+  description = "Chained Overrides Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+
+      # 1. The Base Package
+      base-app = pkgs.callPackage ./my-app.nix { };
+
+    in {
+      packages.${system} = {
+        # The default outputs "Hello, Nix!"
+        default = base-app;
+
+        # 2. Chaining Overrides
+        # First we silence it, then we rename it.
+        custom = base-app.override {
+          enableGreeting = false;
+        }.overrideAttrs (old: {
+          name = "my-app-silent";
+        });
+      };
+    };
+}
+
+```
+
+**Try it out:**
+
+```bash
+# Run the default:
+nix run .#default
+# Output: Hello, Nix!
+
+# Run the overridden version:
+nix run .#custom
+# Output: ...Silence...
+
 ```
 
 ## Summary
 
-- The override pattern adds a method to customize packages after creation
-- `lib.makeOverridable` wraps functions to enable overriding
-- Overrides can be chained for multiple modifications
-- Works well with `callPackage` for flexible package management
-- Enables creating variants without duplicating package definitions
-- The fixed-point pattern allows self-referential package definitions
+- **`.override`**: Modifies the **Function Arguments** (the inputs at the top of your `.nix` file). Attached by `callPackage` via `lib.makeOverridable`.
+- **`.overrideAttrs`**: Modifies the **Derivation Attributes** (the parameters passed to `stdenv.mkDerivation` like `name`, `src`, `installPhase`).
+- **Chaining**: You can safely chain multiple `.override` and `.overrideAttrs` calls to create exactly the variant you need without touching the original source code.
 
 ## Next Capsule
 
-In the next capsule, we'll explore **dependency propagation**—how packages pass dependencies to their dependents through buildInputs, nativeBuildInputs, and setup hooks.
+In the next capsule, we'll explore **dependency propagation**—how packages pass dependencies to their dependents automatically through attributes like `propagatedBuildInputs` and setup hooks.
 
 > **[Nix Capsules 17: Dependency Propagation](./17-dependency-propagation.md)**
