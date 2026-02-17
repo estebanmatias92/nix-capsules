@@ -59,7 +59,9 @@ Explain the correct approach with complete, runnable code.
 ```
 
 ## Key Takeaways
+
 - Bullet points summarizing concepts
+
 ```
 
 ### Code Examples Must:
@@ -89,6 +91,7 @@ direnv allow
 ```
 
 ### Validation (run before committing capsule changes)
+
 ```bash
 # Critical: Check for broken internal links after renames/restructuring
 .github/scripts/check-links.sh pages
@@ -106,68 +109,8 @@ direnv allow
 echo "All checks passed!"
 ```
 
-### Testing Code Examples (CRITICAL)
-
-All runnable code examples in capsules MUST be tested to verify they produce the expected results.
-
-```bash
-# Test all annotated code examples in capsules
-.github/scripts/test-capsules.sh pages
-
-# Test specific capsule
-.github/scripts/test-capsules.sh pages/07-our-first-derivation.md
-```
-
-**Test Annotation Format:**
-Add metadata comments to code blocks that should be tested:
-
-```nix
-# /// test: build
-# /// system: x86_64-linux
-{
-  description = "Testable flake";
-  ...
-}
-```
-
-**Available test types:**
-- `build` - Run `nix build .`, expect success
-- `run` - Run `nix run .`, expect success  
-- `eval` - Run `nix eval .`, expect success
-- `expected_failure` - Run `nix build .`, expect failure with specific error
-- `command` - Execute shell command, verify output
-
-**Test metadata:**
-- `/// test: <type>` - Required. Specifies test behavior
-- `/// output: "exact output"` - Expected stdout (exact match)
-- `/// error: "error pattern"` - Expected error message (substring match)
-- `/// system: x86_64-linux` - Required platform (errors if mismatch)
-- `/// file: flake.nix` - Target filename (defaults based on test type)
-
-**Examples:**
-
-Success test:
-```nix
-# /// test: build
-# /// system: x86_64-linux
-{ ... }
-```
-
-Failure test (Fail-First pedagogy):
-```nix
-# /// test: expected_failure
-# /// error: "No such file or directory"
-{ ... }
-```
-
-Command with output verification:
-```bash
-# /// test: command
-# /// output: "Hello from Nix"
-cat ./result
-```
-
 ### Linting & Formatting
+
 ```bash
 # Lint Nix files
 statix check .
@@ -187,16 +130,19 @@ pre-commit run --all-files
 ### Nix Code in Capsules
 
 #### Formatting
+
 - 2-space indentation
 - Function arguments on separate lines for multi-parameter functions
 - Run `alejandra .` before committing
 
 #### Language Standards
+
 - **Modern Nix Only**: `nix build`, `nix develop`, `nix run`
 - **Prohibited**: `nix-env`, `nix-channel`, `nix-shell`
 - **Allowed exceptions**: `nix-store` (graph inspection), `patchelf`, `direnv`
 
 #### Dependency Attributes
+
 - `nativeBuildInputs`: Tools that run on the build machine
 - `buildInputs`: Libraries linked on the host machine
 - `packages`: ONLY for `mkShell`, never for `mkDerivation`
@@ -229,7 +175,6 @@ pre-commit run --all-files
 |------|---------|
 | Validate links | `.github/scripts/check-links.sh pages` |
 | Validate commands | `.github/scripts/check-commands.sh` |
-| Test capsules | `.github/scripts/test-capsules.sh pages` |
 | Lint Nix | `statix check .` |
 | Format Nix | `alejandra .` |
 | Pre-commit | `pre-commit run --all-files` |
@@ -243,11 +188,11 @@ pre-commit run --all-files
 5. ✅ Glass Box: explain how things work, not just usage
 6. ✅ Fail-First: include intentional errors with explanations
 7. ✅ Self-contained: no dependencies on files from other capsules
-8. ✅ Code examples tested (run test-capsules.sh for modified capsules)
 
 ## Commit Messages
 
 Format: `type: brief description`
+
 - `capsule:` - Changes to capsule content
 - `fix:` - Bug fixes
 - `docs:` - Documentation updates
