@@ -172,7 +172,7 @@ pre-commit run --all-files
 ## Quick Reference
 
 | Task | Command |
-|------|---------|
+| --- | --- |
 | Validate links | `.github/scripts/check-links.sh pages` |
 | Validate commands | `.github/scripts/check-commands.sh` |
 | Lint Nix | `statix check .` |

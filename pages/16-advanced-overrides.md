@@ -71,7 +71,7 @@ If we want to change `enableGreeting` to `false`, we use `.override`.
 
 When you use `pkgs.callPackage ./my-app.nix {}`, Nix automatically attaches a special `.override` method to the resulting package.
 
-### Complete Example
+### Complete Example: overrideAttrs
 
 **File:** `flake.nix`
 
