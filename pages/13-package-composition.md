@@ -40,8 +40,6 @@ Create this file in your project directory:
 **File:** `my-package.nix` (GOOD PATTERN)
 
 ```nix
-# We declare exactly what we need.
-# Note: We don't ask for 'pkgs', we ask for specific tools.
 { stdenv, lib }:
 
 stdenv.mkDerivation {
@@ -174,7 +172,6 @@ stdenv.mkDerivation {
 **File:** `frontend.nix`
 
 ```nix
-# This package explicitly asks for 'backend'
 { stdenv, backend }:
 stdenv.mkDerivation {
   name = "frontend";

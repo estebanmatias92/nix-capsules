@@ -72,10 +72,7 @@ We will build **GNU Hello** from its source tarball.
 ### Run it
 
 ```bash
-nix build .
-
 ./result/bin/hello
-# Output: Hello, world!
 ```
 
 **What happened?**

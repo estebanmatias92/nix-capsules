@@ -2,272 +2,226 @@
 
 ## Introduction
 
-In the previous capsule, we explored advanced override patterns. Now we'll explore **dependency propagation**—how packages depend on each other and influence their dependents through the Nix build system.
+In the previous capsule, we learned how to customize packages using `.override`. Now, we will explore **Dependency Propagation**—how packages influence the environments of other packages that depend on them.
 
-Understanding dependencies is crucial for packaging complex software that relies on libraries, tools, and runtime assets.
+When building complex software, dependencies form a graph. If Package A depends on Package B, and Package B depends on Package C, does Package A automatically get access to Package C?
 
-## Dependency Types in stdenv
+In Nix, the answer is usually **no**—unless you explicitly propagate it.
 
-stdenv provides several dependency attributes:
+## Dependency Types Recap
 
-| Attribute | Purpose | Available During |
-| --------- | ------- | ---------------- |
-| `buildInputs` | Runtime dependencies | configure, build, install, fixup |
-| `nativeBuildInputs` | Build-time tools | configure, build, install |
-| `propagatedBuildInputs` | Inherited by dependents | configure, build, install |
-| `checkInputs` | Test dependencies | check phase only |
+As defined in the Manifesto, `stdenv` strictly separates dependencies:
 
-## buildInputs
+| Attribute | Purpose | Effect |
+| --- | --- | --- |
+| **`nativeBuildInputs`** | **Tools** (Run-time on Build Machine) | Added to `$PATH`. |
+| **`buildInputs`** | **Libraries** (Link-time on Host Machine) | Added to compiler search paths (`$C_INCLUDE_PATH`, etc). |
+| **`propagatedBuildInputs`** | **Inherited Libraries** | Automatically adds the dependency to the `buildInputs` of any downstream package. |
 
-Use `buildInputs` for libraries or programs your package needs at runtime:
+## The Transitive Dependency Trap (Fail-First)
 
-```nix
-{ stdenv, lib, gd, libpng }:
+To understand *why* propagation exists, we must feel the pain of a transitive dependency failure.
 
-stdenv.mkDerivation {
-  name = "graphviz";
-  src = ./graphviz.tar.gz;
+Imagine a scenario:
 
-  buildInputs = [ gd libpng ];
-}
-```
+1. `lib-base` provides a C header (`base.h`).
+2. `lib-mid` provides a C header (`mid.h`) that **includes** `<base.h>`.
+3. `app` includes `<mid.h>` and tries to compile.
 
-These packages are:
+Let's build this scenario. Create the following `flake.nix`:
 
-- Added to `$PATH` during build phases
-- Available during runtime of the built program
-- Automatically included in the runtime closure
-
-## nativeBuildInputs
-
-Use `nativeBuildInputs` for tools needed only during the build:
+**File:** `flake.nix`
 
 ```nix
-{ stdenv, pkg-config, gettext }:
+{
+  description = "Dependency Propagation Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-stdenv.mkDerivation {
-  name = "mypackage";
-  src = ./mypackage.tar.gz;
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in rec {
+    packages.${system} = {
 
-  nativeBuildInputs = [ pkg-config gettext ];
+      # 1. THE BASE LIBRARY
+      lib-base = pkgs.stdenv.mkDerivation {
+        name = "lib-base";
+        dontUnpack = true;
+        installPhase = ''
+          mkdir -p $out/include
+          echo "int base_val = 42;" > $out/include/base.h
+        '';
+      };
+
+      # 2. THE MIDDLE LIBRARY (The Trap)
+      lib-mid-broken = pkgs.stdenv.mkDerivation {
+        name = "lib-mid-broken";
+        dontUnpack = true;
+        # We declare standard buildInputs
+        buildInputs = [ lib-base ]; 
+        installPhase = ''
+          mkdir -p $out/include
+          echo "#include <base.h>" > $out/include/mid.h
+          echo "int mid_val = base_val + 1;" >> $out/include/mid.h
+        '';
+      };
+
+      # 3. THE APPLICATION
+      app-broken = pkgs.stdenv.mkDerivation {
+        name = "app-broken";
+        dontUnpack = true;
+        # The app ONLY asks for the middle library
+        buildInputs = [ lib-mid-broken ];
+        buildPhase = ''
+          echo "#include <mid.h>" > main.c
+          echo "int main() { return mid_val; }" >> main.c
+          gcc -o app main.c
+        '';
+        installPhase = "mkdir -p $out/bin; cp app $out/bin/";
+      };
+    };
+  };
 }
 ```
 
-These are available during build but not included in runtime dependencies.
-
-## The PATH Setup
-
-`stdenv` automatically adds dependencies to PATH:
+**Try to build the application:**
 
 ```bash
-export PATH="$dir/bin${PATH:+:}$PATH"
+git init && git add flake.nix
+nix build .#app-broken
 ```
 
-Each `buildInput` and `nativeBuildInput` has its `bin` directory added.
+**The Failure:**
+`main.c:1:10: fatal error: mid.h: No such file or directory` (or `base.h: No such file or directory` depending on compiler behavior).
+Nix isolated `app-broken`. It provided access to `lib-mid-broken`, but because `lib-mid-broken` did not *propagate* `lib-base`, the compiler inside `app-broken`'s sandbox has no idea where `base.h` is!
 
-## propagatedBuildInputs
+## Step 1: The Fix (`propagatedBuildInputs`)
 
-Use `propagatedBuildInputs` when dependents need the dependency:
+If a library's public headers expose another library's headers, it **must** propagate that dependency.
+
+Let's add the fixed versions to our `flake.nix`'s `packages` output:
 
 ```nix
-# libfoo.nix
-stdenv.mkDerivation {
-  name = "libfoo";
+      # ... (add this below app-broken)
 
-  buildInputs = [ bar ];
+      # 2. THE MIDDLE LIBRARY (Fixed)
+      lib-mid-fixed = pkgs.stdenv.mkDerivation {
+        name = "lib-mid-fixed";
+        dontUnpack = true;
+        # We change buildInputs to propagatedBuildInputs
+        propagatedBuildInputs = [ lib-base ]; 
+        installPhase = ''
+          mkdir -p $out/include
+          echo "#include <base.h>" > $out/include/mid.h
+          echo "int mid_val = base_val + 1;" >> $out/include/mid.h
+        '';
+      };
 
-  propagatedBuildInputs = [ bar ];
-}
+      # 3. THE APPLICATION (Fixed)
+      app-fixed = pkgs.stdenv.mkDerivation {
+        name = "app-fixed";
+        dontUnpack = true;
+        buildInputs = [ lib-mid-fixed ]; # Depends on the fixed lib
+        buildPhase = ''
+          echo "#include <mid.h>" > main.c
+          echo "int main() { return mid_val; }" >> main.c
+          gcc -o app main.c
+        '';
+        installPhase = "mkdir -p $out/bin; cp app $out/bin/";
+      };
 ```
 
-If `libfoo` has `bar` in `propagatedBuildInputs`, packages depending on `libfoo` automatically get `bar` in their build environment.
-
-## How Propagation Works
-
-When a package is built, its `propagatedBuildInputs` are recorded:
+**Try to build the fixed application:**
 
 ```bash
-# In the fixup phase
-echo "$propagatedBuildInputs" > $out/nix-support/propagated-build-inputs
+nix build .#app-fixed
 ```
 
-Other packages read this file and include those dependencies.
+**It succeeds!** `app-fixed` requested `lib-mid-fixed`, and Nix silently handed it `lib-base` as well.
 
-## Example: Library Chain
+## Step 2: The Mechanism (Glass Box)
+
+How does `stdenv` magically know to include `lib-base` when building the app? It doesn't use a database; it uses plain text files written during the build.
+
+Let's inspect the `lib-mid-fixed` package we just created:
+
+```bash
+nix build .#lib-mid-fixed
+
+# Inspect the hidden Nix support directory
+cat ./result/nix-support/propagated-build-inputs
+```
+
+**The Output:**
+`/nix/store/...-lib-base`
+
+When Nix starts compiling `app-fixed`, it looks at `lib-mid-fixed`, discovers this `nix-support` folder, reads the text file, and dynamically adds `/nix/store/...-lib-base` to the `$C_INCLUDE_PATH`. There is no magic—just text files tracking graphs.
+
+## Step 3: Setup Hooks (Custom Environment Injection)
+
+Propagation isn't just for C libraries. What if your package requires a custom environment variable (like `FRAMEWORK_DIR`) to be set for any package that depends on it?
+
+You can inject a **Setup Hook**—a shell script that `stdenv` executes before building downstream packages.
+
+Add these final packages to your `flake.nix`:
 
 ```nix
-# application.nix
-{ stdenv, libfoo }:
+      # ... (add this below app-fixed)
 
-stdenv.mkDerivation {
-  name = "application";
+      # A framework that exports an environment variable
+      my-framework = pkgs.stdenv.mkDerivation {
+        name = "my-framework";
+        dontUnpack = true;
+        installPhase = ''
+          mkdir -p $out/nix-support
+          
+          # We write a bash script to the setup-hook file
+          cat > $out/nix-support/setup-hook <<EOF
+          export MY_FRAMEWORK_ACTIVE="true"
+          export MY_FRAMEWORK_PATH="$out"
+          echo "--- Custom Framework Hook Activated! ---"
+          EOF
+        '';
+      };
 
-  buildInputs = [ libfoo ];
-}
+      # An app that consumes the framework
+      app-hook-test = pkgs.stdenv.mkDerivation {
+        name = "app-hook-test";
+        dontUnpack = true;
+        buildInputs = [ my-framework ];
+        
+        # We test if the variable exists during the build!
+        buildPhase = ''
+          if [ "$MY_FRAMEWORK_ACTIVE" = "true" ]; then
+            echo "Success: Framework path is $MY_FRAMEWORK_PATH" > result.txt
+          else
+            echo "Fail: Framework missing" > result.txt
+            exit 1
+          fi
+        '';
+        installPhase = "mkdir -p $out; cp result.txt $out/";
+      };
 ```
 
-If `libfoo` has `propagatedBuildInputs = [ bar ]`, then `application` automatically gets `bar` in its environment.
-
-## Setup Hooks
-
-Setup hooks allow packages to influence the build environment of dependents:
+**Test the hook:**
 
 ```bash
-# In libfoo's $out/nix-support/setup-hook.sh
-addToSearchPath PATH $out/bin
+nix build .#app-hook-test
+cat ./result/result.txt
+# Output: Success: Framework path is /nix/store/...-my-framework
 ```
 
-When another package includes `libfoo`, this hook is sourced automatically.
-
-## Creating Setup Hooks
-
-Add a setup hook in your package:
-
-```nix
-{ stdenv, writeText }:
-
-stdenv.mkDerivation {
-  name = "mylib";
-  # ...
-
-  installPhase = ''
-    mkdir -p $out/nix-support
-    cat > $out/nix-support/setup-hook.sh << 'EOF'
-addToSearchPath() {
-  local varName="$1"
-  local dir="$2"
-  if [[ ":${varName}:" != *":${dir}:"* ]]; then
-    export "${varName}=${dir}${${varName}+:${${varName}:}}"
-  fi
-}
-EOF
-  '';
-}
-```
-
-## Environment Hooks
-
-Environment hooks run for each dependency and can influence sibling dependencies:
-
-```bash
-# In a package's setup hook
-envHooks+=(myEnvHook)
-
-myEnvHook() {
-  local pkg="$1"
-  if [[ -f "$pkg/lib/pkgconfig/foo.pc" ]]; then
-    export PKG_CONFIG_PATH="$pkg/lib/pkgconfig:$PKG_CONFIG_PATH"
-  fi
-}
-```
-
-This enables pkg-config auto-detection for libraries.
-
-## The C Compiler Wrapper
-
-The GCC/Clang wrapper uses environment hooks to set compile flags:
-
-```nix
-{ stdenv, gcc, lib }:
-
-stdenv.mkDerivation {
-  name = "gcc-wrapper";
-
-  # The wrapper automatically sets:
-  # NIX_CFLAGS_COMPILE = "-I$out/include -L$out/lib"
-  # NIX_LDFLAGS = "-L$out/lib -rpath=$out/lib"
-}
-```
-
-## Dependency Best Practices
-
-1. **Use buildInputs** for runtime dependencies
-2. **Use nativeBuildInputs** for build-time tools
-3. **Use propagatedBuildInputs** for libraries that dependents need
-4. **Create setup hooks** for non-standard configuration
-5. **Minimize dependencies**—only add what you need
-
-## Example: Complete Package with Hooks
-
-```nix
-{ stdenv, lib, pkg-config, gd, zlib }:
-
-stdenv.mkDerivation {
-  name = "mylib-1.0";
-
-  src = ./mylib.tar.gz;
-
-  nativeBuildInputs = [ pkg-config ];
-  buildInputs = [ gd zlib ];
-
-  configureFlags = [
-    "--with-gd=${gd}"
-    "--with-zlib=${zlib}"
-  ];
-
-  postInstall = ''
-    # Create pkg-config file
-    mkdir -p $out/lib/pkgconfig
-    cat > $out/lib/pkgconfig/mylib.pc << EOF
-prefix=$out
-exec_prefix=\${prefix}
-libdir=\${exec_prefix}/lib
-includedir=\${prefix}/include
-
-Name: mylib
-Description: My library
-Version: 1.0
-Libs: -L\${libdir} -lmylib
-Cflags: -I\${includedir}
-EOF
-  '';
-}
-```
-
-## Debugging Dependencies
-
-Check what dependencies a package has:
-
-```bash
-# Runtime dependencies
-nix path-info --json /nix/store/...-mypackage | jq -r '.[].references[]'
-
-# Build dependencies
-nix derivation show /nix/store/...-mypackage.drv | jq '.[].inputDrvs'
-
-# Environment in nix develop
-nix develop .#mypackage --command env | grep -E '^(PATH|PKG_CONFIG|NIX_)'
-```
-
-## Understanding the Dependency Graph
-
-The dependency graph flows in two directions:
-
-**Build-time dependencies:**
-
-```bash
-myapp → libfoo → bar
-```
-
-**Runtime dependencies (closure):**
-
-```bash
-myapp → libfoo → bar
-   ↓
-   └── bar (runtime)
-```
+When `app-hook-test` declared `buildInputs = [ my-framework ]`, Nix automatically sourced the `setup-hook` script from the framework, executing your custom logic before the `buildPhase` even started.
 
 ## Summary
 
-- `buildInputs` adds runtime dependencies to PATH and closure
-- `nativeBuildInputs` adds build-time tools only
-- `propagatedBuildInputs` makes dependencies available to dependents
-- Setup hooks run automatically when packages are included
-- Environment hooks allow packages to influence sibling dependencies
-- Use pkg-config, setup hooks, and environment hooks for proper integration
+* **The Trap:** Including a library in `buildInputs` hides its dependencies from downstream consumers.
+* **`propagatedBuildInputs`:** Tells Nix to expose this dependency to anyone who depends on *you*. Commonly used for C-headers and Python libraries.
+* **The Glass Box:** Propagation is tracked simply by writing paths to `$out/nix-support/propagated-build-inputs`.
+* **Setup Hooks:** You can execute arbitrary Bash scripts in the build environments of downstream consumers by placing a script at `$out/nix-support/setup-hook`.
 
 ## Next Capsule
 
-In the next capsule, we'll explore **store internals**—how Nix handles fixed-output derivations, content-addressable storage, and path resolution.
+In the next capsule, we'll explore **Store Internals**—diving deep into the difference between Input-Addressed and Content-Addressed derivations, and how multiple outputs split a single build into separate store paths.
 
 > **[Nix Capsules 18: Store Internals](./18-store-internals.md)**

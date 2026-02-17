@@ -19,6 +19,7 @@
   - **`nix-store`**: Allowed strictly for advanced graph visualization (`-q --tree`, `--graph`) and closure inspection (`-qR`, `--references`) where `nix path-info` lacks readability or functionality.
   - **`patchelf`**: Allowed for inspecting binary RPATHs (Glass Box inspection of `stdenv` magic).
   - **`direnv`**: Allowed as the standard tool for automating environment loading.
+  - **`nix-collect-garbage`**: Allowed as the legacy utility that combines "wipe history" and "collect garbage" into one command.
 
 ### 2. The "Glass Box" Approach (No Magic)
 

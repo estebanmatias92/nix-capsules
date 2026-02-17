@@ -70,7 +70,6 @@ Build a simple program and check its runtime dependencies:
 ```
 
 ```bash
-nix build .
 nix-store -q --references ./result
 ```
 

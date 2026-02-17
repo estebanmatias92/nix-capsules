@@ -63,14 +63,27 @@ We need a real program. Let's use `coreutils` from Nixpkgs, which contains the `
 Update your `flake.nix`:
 
 ```nix
-  #...
+{
+  description = "My Second Derivation";
+
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  };
+
+  outputs = { self, nixpkgs }:
+  let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in
+  {
     packages.${system}.default = derivation {
       name = "my-second-package";
       system = system;
       # We use string interpolation to get the store path of coreutils
       builder = "${pkgs.coreutils}/bin/true";
     };
-  # ...
+  };
+}
 ```
 
 ### Try to build it again
@@ -95,7 +108,19 @@ We need to:
 3. Write something to the environment variable `$out` (which Nix sets for us).
 
 ```nix
-  #...
+{
+  description = "My Third Derivation";
+
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  };
+
+  outputs = { self, nixpkgs }:
+  let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in
+  {
     packages.${system}.default = derivation {
       name = "my-third-package";
       system = system;
@@ -106,7 +131,8 @@ We need to:
       # 2. The Arguments
       args = [ "-c" "echo 'Hello from Nix' > $out" ];
     };
-  # ...
+  };
+}
 ```
 
 ### Build it (Success!)
@@ -119,7 +145,6 @@ Now check the result:
 
 ```bash
 cat ./result
-# Output: Hello from Nix
 ```
 
 You have just manually created a package without using `stdenv` or `make`!
@@ -198,12 +223,11 @@ Nix automatically sets the `$out` environment variable inside the builder sandbo
 
 - **`derivation`** is the low-level primitive that powers all of Nix.
 - **Sandboxing:** Builders cannot see system tools; you must provide paths to store objects (like `${pkgs.bash}`).
-- **The Contract:** A derivation must create the file/directory at `$out`.
-- **Instantiation:** `.nix` -> `.drv` (The Plan).
-- **Realization:** `.drv` -> Output (The Execution).
+- **`$out`:** The builder must write its output to this path.
+- **`.drv` files:** These are the JSON manifests Nix uses to track build instructions.
 
 ## Next Capsule
 
-We've used `builtins.derivation`, but in the real world, we rarely write raw shell scripts like this. We use the **Standard Environment** (`stdenv`). But first, we need to understand the magic behind those hash strings in the store paths.
+Now that we understand derivations, we will explore how Nix calculates the unique **store paths** using cryptographic hashing.
 
 > **[Nix Capsules 8: Store Path Mechanics](./08-store-path-mechanics.md)**

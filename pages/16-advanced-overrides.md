@@ -18,7 +18,6 @@ my-custom-hello = pkgs.hello.override {
   name = "hello-custom-version";
   doCheck = false;
 };
-
 ```
 
 **The Failure:**
@@ -40,8 +39,10 @@ Let's create a functional, self-contained package to experiment on. It takes a c
 **File:** `my-app.nix`
 
 ```nix
-# THE FUNCTION HEADER (Modified by .override)
-{ stdenv, enableGreeting ? true }:
+{
+  stdenv,
+  enableGreeting ? true,
+}:
 
 # THE DERIVATION (Modified by .overrideAttrs)
 stdenv.mkDerivation {
@@ -50,11 +51,15 @@ stdenv.mkDerivation {
 
   # We use the function argument to change the build logic
   greeting = if enableGreeting then "Hello, Nix!" else "...Silence...";
-
+  
+  # We concatenate hook calls so the following overrides can add or modify the phases in concatenation. 
   installPhase = ''
+    runHook preInstall
     mkdir -p $out/bin
-    echo "echo '$greeting'" > $out/bin/my-app
+    echo "#!/bin/sh" > $out/bin/my-app
+    echo "echo '$greeting'" >> $out/bin/my-app
     chmod +x $out/bin/my-app
+    runHook postInstall
   '';
 }
 
@@ -85,7 +90,6 @@ When you use `pkgs.callPackage ./my-app.nix {}`, Nix automatically attaches a sp
       };
     };
 }
-
 ```
 
 **Try it:**
@@ -93,7 +97,6 @@ When you use `pkgs.callPackage ./my-app.nix {}`, Nix automatically attaches a sp
 ```bash
 nix run
 # Output: ...Silence...
-
 ```
 
 > **Didactic Check:** Can I use `.override` to change `stdenv`?
@@ -111,25 +114,27 @@ We use `.overrideAttrs`. This method takes a function that receives the `old` at
 
 ```nix
 {
-  description = "overrideAttrs Demo";
+  description = "Override Demo";
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-  outputs = { self, nixpkgs }:
+  outputs =
+    { self, nixpkgs }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
-    in {
+    in
+    {
       packages.${system}.default = (pkgs.callPackage ./my-app.nix { }).overrideAttrs (old: {
         name = "${old.name}-customized";
 
-        # We append to the existing installPhase
+        # We append to the existing installPhase using postInstall
         postInstall = ''
           echo "echo 'Extra Line'" >> $out/bin/my-app
+          mv $out/bin/my-app $out/bin/my-app-customized
         '';
       });
     };
 }
-
 ```
 
 **Try it:**
@@ -138,7 +143,6 @@ We use `.overrideAttrs`. This method takes a function that receives the `old` at
 nix run
 # Output: Hello, Nix!
 #         Extra Line
-
 ```
 
 ## Step 4: The Mechanism (Glass Box)
@@ -148,17 +152,49 @@ How does a package magically get these `.override` methods? It is not a feature 
 Let's inspect our package attributes using `nix eval`:
 
 ```bash
-nix eval --json .#default.override 2>/dev/null | head -c 200
-# Shows the override function is present
+nix eval --json '.#packages.x86_64-linux.default.drvAttrs' 2>&1
 
-```
+#{
+#  "__ignoreNulls": true,
+#  "__structuredAttrs": false,
+#  "args": [
+#    "-e",
+#    "/nix/store/cgxij999rhadrig5i2q106am7r808p11-source/pkgs/stdenv/generic/source-stdenv.sh",
+#    "/nix/store/cgxij999rhadrig5i2q106am7r808p11-source/pkgs/stdenv/generic/default-builder.sh"
+#  ],
+#  "buildInputs": [],
+#  "builder": "/nix/store/f15k3dpilmiyv6zgpib289rnjykgr1r4-bash-5.3p9/bin/bash",
+#  "cmakeFlags": [],
+#  "configureFlags": [],
+#  "depsBuildBuild": [],
+#  "depsBuildBuildPropagated": [],
+#  "depsBuildTarget": [],
+#  "depsBuildTargetPropagated": [],
+#  "depsHostHost": [],
+#  "depsHostHostPropagated": [],
+#  "depsTargetTarget": [],
+#  "depsTargetTargetPropagated": [],
+#  "doCheck": false,
+#  "doInstallCheck": false,
+#  "dontUnpack": true,
 
-Or inspect the derivation directly:
+#  "greeting": "Hello, Nix!",
+#  "installPhase": "runHook preInstall\nmkdir -p $out/bin\necho \"#!/bin/sh\" > $out/bin/my-app\necho \"echo '$greeting'\" >> $out/bin/my-app\nchmod +x $out/bin/my-app\nrunHook postInstall\n",
 
-```bash
-nix derivation show .#default | grep -A5 '"override"'
-# Shows the override mechanism in the derivation
+#  "name": "my-app-customized",     
+#  "postInstall": "echo \"echo 'Extra Line'\" >> $out/bin/my-app\nmv $out/bin/my-app $out/bin/my-app-customized\n",
 
+#  "mesonFlags": [],
+#  "nativeBuildInputs": [],
+#  "outputs": ["out"],
+#  "patches": [],
+#  "propagatedBuildInputs": [],
+#  "propagatedNativeBuildInputs": [],
+#  "stdenv": "/nix/store/gidygr7l2i5kckd3zv9kfjcymxcycw6y-stdenv-linux",
+#  "strictDeps": false,
+#  "system": "x86_64-linux",
+#  "userHook": null
+#}
 ```
 
 1. **`overrideAttrs`**: This is attached natively by `stdenv.mkDerivation`. Every standard package has it.
@@ -175,7 +211,6 @@ lib.makeOverridable = func: originalArgs:
     result // {
       override = newArgs: func (originalArgs // newArgs);
     };
-
 ```
 
 It simply saves your original arguments, and when you call `.override`, it merges the new arguments and calls the function again!
@@ -214,7 +249,6 @@ You can chain multiple `.override` and `.overrideAttrs` calls to create exactly 
       };
     };
 }
-
 ```
 
 **Try it out:**

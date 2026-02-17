@@ -69,7 +69,12 @@ nix-repl> add { a = 10; b = 2; }
 By default, Nix is strict. If you pass extra args, it crashes.
 
 ```nix
-nix-repl> add { a = 10; b = 2; c = 5; }
+let add = { a, b }: a + b; in add { a = 10; b = 2; c = 5; }
+```
+
+**The Failure:**
+
+```nix
 error: function 'anonymous lambda' called with unexpected argument 'c'
 ```
 
@@ -182,11 +187,49 @@ Let's refactor our standard Flake to verify we understand exactly how data flows
 Run it:
 
 ```bash
+cat > flake.nix << 'EOF'
+{
+  description = "Functions Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  outputs = { self, nixpkgs }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+      sayHello = name: pkgs.writeShellScriptBin "greet" ''
+        echo "Hello, ${name}!"
+      '';
+    in {
+      packages.${system} = {
+        default = sayHello "Student";
+        custom  = sayHello "Advanced User";
+      };
+    };
+}
+EOF
 nix run .#default
-# Output: Hello, Student!
+```
 
+```bash
+cat > flake.nix << 'EOF'
+{
+  description = "Functions Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  outputs = { self, nixpkgs }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+      sayHello = name: pkgs.writeShellScriptBin "greet" ''
+        echo "Hello, ${name}!"
+      '';
+    in {
+      packages.${system} = {
+        default = sayHello "Student";
+        custom  = sayHello "Advanced User";
+      };
+    };
+}
+EOF
 nix run .#custom
-# Output: Hello, Advanced User!
 ```
 
 ## Summary
