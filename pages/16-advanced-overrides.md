@@ -153,48 +153,52 @@ Let's inspect our package attributes using `nix eval`:
 
 ```bash
 nix eval --json '.#packages.x86_64-linux.default.drvAttrs' 2>&1
+```
 
-#{
-#  "__ignoreNulls": true,
-#  "__structuredAttrs": false,
-#  "args": [
-#    "-e",
-#    "/nix/store/cgxij999rhadrig5i2q106am7r808p11-source/pkgs/stdenv/generic/source-stdenv.sh",
-#    "/nix/store/cgxij999rhadrig5i2q106am7r808p11-source/pkgs/stdenv/generic/default-builder.sh"
-#  ],
-#  "buildInputs": [],
-#  "builder": "/nix/store/f15k3dpilmiyv6zgpib289rnjykgr1r4-bash-5.3p9/bin/bash",
-#  "cmakeFlags": [],
-#  "configureFlags": [],
-#  "depsBuildBuild": [],
-#  "depsBuildBuildPropagated": [],
-#  "depsBuildTarget": [],
-#  "depsBuildTargetPropagated": [],
-#  "depsHostHost": [],
-#  "depsHostHostPropagated": [],
-#  "depsTargetTarget": [],
-#  "depsTargetTargetPropagated": [],
-#  "doCheck": false,
-#  "doInstallCheck": false,
-#  "dontUnpack": true,
+**The Output:**
 
-#  "greeting": "Hello, Nix!",
-#  "installPhase": "runHook preInstall\nmkdir -p $out/bin\necho \"#!/bin/sh\" > $out/bin/my-app\necho \"echo '$greeting'\" >> $out/bin/my-app\nchmod +x $out/bin/my-app\nrunHook postInstall\n",
+```json
+{
+ "__ignoreNulls": true,
+ "__structuredAttrs": false,
+ "args": [
+   "-e",
+   "/nix/store/cgxij999rhadrig5i2q106am7r808p11-source/pkgs/stdenv/generic/source-stdenv.sh",
+   "/nix/store/cgxij999rhadrig5i2q106am7r808p11-source/pkgs/stdenv/generic/default-builder.sh"
+ ],
+ "buildInputs": [],
+ "builder": "/nix/store/f15k3dpilmiyv6zgpib289rnjykgr1r4-bash-5.3p9/bin/bash",
+ "cmakeFlags": [],
+ "configureFlags": [],
+ "depsBuildBuild": [],
+ "depsBuildBuildPropagated": [],
+ "depsBuildTarget": [],
+ "depsBuildTargetPropagated": [],
+ "depsHostHost": [],
+ "depsHostHostPropagated": [],
+ "depsTargetTarget": [],
+ "depsTargetTargetPropagated": [],
+ "doCheck": false,
+ "doInstallCheck": false,
+ "dontUnpack": true,
 
-#  "name": "my-app-customized",     
-#  "postInstall": "echo \"echo 'Extra Line'\" >> $out/bin/my-app\nmv $out/bin/my-app $out/bin/my-app-customized\n",
+ "greeting": "Hello, Nix!",
+ "installPhase": "runHook preInstall\nmkdir -p $out/bin\necho \"#!/bin/sh\" > $out/bin/my-app\necho \"echo '$greeting'\" >> $out/bin/my-app\nchmod +x $out/bin/my-app\nrunHook postInstall\n",
 
-#  "mesonFlags": [],
-#  "nativeBuildInputs": [],
-#  "outputs": ["out"],
-#  "patches": [],
-#  "propagatedBuildInputs": [],
-#  "propagatedNativeBuildInputs": [],
-#  "stdenv": "/nix/store/gidygr7l2i5kckd3zv9kfjcymxcycw6y-stdenv-linux",
-#  "strictDeps": false,
-#  "system": "x86_64-linux",
-#  "userHook": null
-#}
+ "name": "my-app-customized",     
+ "postInstall": "echo \"echo 'Extra Line'\" >> $out/bin/my-app\nmv $out/bin/my-app $out/bin/my-app-customized\n",
+
+ "mesonFlags": [],
+ "nativeBuildInputs": [],
+ "outputs": ["out"],
+ "patches": [],
+ "propagatedBuildInputs": [],
+ "propagatedNativeBuildInputs": [],
+ "stdenv": "/nix/store/gidygr7l2i5kckd3zv9kfjcymxcycw6y-stdenv-linux",
+ "strictDeps": false,
+ "system": "x86_64-linux",
+ "userHook": null
+}
 ```
 
 1. **`overrideAttrs`**: This is attached natively by `stdenv.mkDerivation`. Every standard package has it.

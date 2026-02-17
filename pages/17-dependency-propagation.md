@@ -40,8 +40,8 @@ Let's build this scenario. Create the following `flake.nix`:
   outputs = { self, nixpkgs }: let
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
-  in rec {
-    packages.${system} = {
+  in {
+    packages.${system} = rec {
 
       # 1. THE BASE LIBRARY
       lib-base = pkgs.stdenv.mkDerivation {
@@ -49,7 +49,7 @@ Let's build this scenario. Create the following `flake.nix`:
         dontUnpack = true;
         installPhase = ''
           mkdir -p $out/include
-          echo "int base_val = 42;" > $out/include/base.h
+          echo "#define BASE_VAL 42" > $out/include/base.h
         '';
       };
 
@@ -58,11 +58,11 @@ Let's build this scenario. Create the following `flake.nix`:
         name = "lib-mid-broken";
         dontUnpack = true;
         # We declare standard buildInputs
-        buildInputs = [ lib-base ]; 
+        buildInputs = [ lib-base ];
         installPhase = ''
           mkdir -p $out/include
           echo "#include <base.h>" > $out/include/mid.h
-          echo "int mid_val = base_val + 1;" >> $out/include/mid.h
+          echo "int mid_val = BASE_VAL + 1;" >> $out/include/mid.h
         '';
       };
 
@@ -109,11 +109,11 @@ Let's add the fixed versions to our `flake.nix`'s `packages` output:
         name = "lib-mid-fixed";
         dontUnpack = true;
         # We change buildInputs to propagatedBuildInputs
-        propagatedBuildInputs = [ lib-base ]; 
+        propagatedBuildInputs = [ lib-base ];
         installPhase = ''
           mkdir -p $out/include
           echo "#include <base.h>" > $out/include/mid.h
-          echo "int mid_val = base_val + 1;" >> $out/include/mid.h
+          echo "int mid_val = BASE_VAL + 1;" >> $out/include/mid.h
         '';
       };
 
@@ -127,7 +127,6 @@ Let's add the fixed versions to our `flake.nix`'s `packages` output:
           echo "int main() { return mid_val; }" >> main.c
           gcc -o app main.c
         '';
-        installPhase = "mkdir -p $out/bin; cp app $out/bin/";
       };
 ```
 
@@ -135,6 +134,8 @@ Let's add the fixed versions to our `flake.nix`'s `packages` output:
 
 ```bash
 nix build .#app-fixed
+echo $? # Check exit code
+# Output: 43
 ```
 
 **It succeeds!** `app-fixed` requested `lib-mid-fixed`, and Nix silently handed it `lib-base` as well.
