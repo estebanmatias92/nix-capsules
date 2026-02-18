@@ -2,407 +2,181 @@
 
 ## Introduction
 
-In the previous capsule, we explored store internals. Now we'll learn about **multiple outputs**—a powerful feature that lets you split a single derivation into multiple store paths.
+In the previous capsule, we looked at Store Internals and the dependency graph. Now, we'll tackle a practical problem that arises when packaging complex software: **Closure Bloat**.
 
-Multiple outputs are essential for:
+When you compile a typical software project, the build produces:
 
-- Reducing closure sizes (install only what you need)
-- Organizing packages (binaries, docs, dev files separate)
-- Optimizing deployment (only deploy runtime files)
+1. Runtime binaries.
+2. C headers (`.h`) for development.
+3. Documentation files (HTML/Man pages).
 
-## Why Multiple Outputs?
+If you dump all of this into the default `$out` path, anyone who installs your package will be forced to download the headers and documentation, even if they only want to run the program. Nix solves this using **Multiple Outputs**.
 
-Consider a package like GTK:
+## The Bloated Closure Trap (Fail-First)
 
-```bash
-gtk/
-├── bin/           # Runtime binaries
-├── lib/           # Libraries (runtime)
-├── include/       # Headers (development only)
-├── share/         # Data files
-└── lib/pkgconfig/ # .pc files (development only)
-```
+Let's build a package that generates a tiny binary but also creates a massive 50MB "documentation" file.
 
-If you only need the runtime library, you shouldn't need headers and pkgconfig files. Multiple outputs solve this.
-
-## Basic Syntax
-
-Define multiple outputs with the `outputs` attribute:
+**File:** `flake.nix`
 
 ```nix
-stdenv.mkDerivation {
-  name = "mypackage-1.0";
+{
+  description = "Multiple Outputs Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-  outputs = ["out" "doc" "dev"];
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in {
+    packages.${system} = rec {
 
-  installPhase = ''
-    mkdir -p $out $doc $dev
+      # 1. THE BLOATED APP (The Trap)
+      bloated-app = pkgs.stdenv.mkDerivation {
+        name = "bloated-app";
+        dontUnpack = true;
+        
+        installPhase = ''
+          mkdir -p $out/bin $out/share/doc
+          
+          # The tiny executable
+          echo "#!${pkgs.bash}/bin/bash" > $out/bin/my-app
+          echo "echo 'Running...'" >> $out/bin/my-app
+          chmod +x $out/bin/my-app
+          
+          # The massive 50MB dummy documentation
+          head -c 50M </dev/zero > $out/share/doc/manual.html
+        '';
+      };
 
-    # Runtime to out
-    cp bin/* $out/bin/
-    cp lib/*.so $out/lib/
-
-    # Documentation to doc
-    cp -r man $doc/
-    cp README $doc/
-
-    # Development files to dev
-    cp -r include $dev/
-    cp lib/*.pc $dev/lib/pkgconfig/
-  '';
-}
-```
-
-### Output Names
-
-| Name   | Convention     | Contents                    |
-| ------ | -------------- | --------------------------- |
-| `out`  | Always present | Main package                |
-| `bin`  | Optional       | Executables (added to PATH) |
-| `lib`  | Optional       | Libraries                   |
-| `dev`  | Optional       | Headers, pkg-config files   |
-| `doc`  | Optional       | Documentation               |
-| `man`  | Optional       | Manual pages                |
-| `info` | Optional       | Info documentation          |
-
-## Environment Variables
-
-Each output gets its own environment variable:
-
-```bash
-$out           # Path to "out" output
-$doc           # Path to "doc" output
-$dev           # Path to "dev" output
-
-$outBin        # $out/bin (convenience)
-$outLib        # $out/lib (convenience)
-```
-
-### Default Output
-
-The `out` output is the default—accessing `pkgs.hello` is the same as `pkgs.hello.out`.
-
-## Automatic PATH Addition
-
-The `bin` output is special—its `bin` directory is automatically added to PATH:
-
-```nix
-stdenv.mkDerivation {
-  name = "mypackage";
-
-  outputs = ["out" "bin"];
-
-  installPhase = ''
-    mkdir -p $out $bin
-    cp mybinary $bin/
-    cp data $out/
-  '';
-}
-```
-
-Using `$bin` means executables are in PATH.
-
-## Using Multiple Outputs in Nixpkgs
-
-Nixpkgs uses multiple outputs extensively:
-
-```nix
-nix-repl> pkgs.hello.outputs
-[ "out" ]
-
-nix-repl> pkgsgtk3.outputs
-[ "out" "bin" "dev" "doc" "lib" "man" ]
-```
-
-### Referencing Specific Outputs
-
-```nix
-# Runtime only
-pkgs.gtk3.out
-
-# Development files
-pkgs.gtk3.dev
-
-# Binaries
-pkgs.gtk3.bin
-
-# Documentation
-pkgs.gtk3.doc
-```
-
-### Default vs Specific
-
-```nix
-# Default output
-pkgs.gtk3       # Same as pkgs.gtk3.out
-
-# Specific output
-pkgs.gtk3.dev   # Development files only
-```
-
-## Constructing Outputs Efficiently
-
-### Using makeScope
-
-Nixpkgs provides helpers for multiple outputs:
-
-```nix
-{ lib, stdenv, fetchurl }:
-
-stdenv.mkDerivation (finalAttrs: {
-  name = "hello-2.12.1";
-
-  src = fetchurl {
-    url = "mirror://gnu/hello/hello-2.12.1.tar.gz";
-    sha256 = "abc123...";
+      default = bloated-app;
+    };
   };
-
-  outputs = [ "out" "doc" ];
-
-  makeFlags = [ "DESTDIR=$(doc)" ];
-
-  postInstall = ''
-    moveToOutput "share/info" "$doc"
-  '';
-})
-```
-
-### Using moveToOutput
-
-The `moveToOutput` helper moves files from `$out` to another output:
-
-```nix
-postInstall = ''
-  moveToOutput "share/man" "$doc"
-  moveToOutput "share/info" "$doc"
-  moveToOutput "include" "$dev"
-'';
-```
-
-## Setting Permissions
-
-Different outputs may need different permissions:
-
-```nix
-stdenv.mkDerivation {
-  name = "mypackage";
-
-  outputs = ["out" "dev"];
-
-  installPhase = ''
-    mkdir -p $out $dev
-
-    # Main package - world-readable
-    cp data $out/
-    chmod 644 $out/*
-
-    # Development files - same
-    cp headers $dev/
-    chmod 644 $dev/*
-  '';
 }
 ```
 
-## Separable Packages
-
-Some packages mark outputs as separable:
-
-```nix
-stdenv.mkDerivation {
-  name = "libfoo";
-
-  outputs = ["out" "dev"];
-
-  dontBuildDev = true;  # Don't build dev output
-  dontInstallDev = true;  # Don't install dev files
-}
-```
-
-This skips unnecessary work when you only need the runtime.
-
-## Build Inputs with Multiple Outputs
-
-When using packages with multiple outputs:
-
-```nix
-stdenv.mkDerivation {
-  name = "myapp";
-
-  buildInputs = [ pkgs.gtk3 ];
-
-  # By default, all outputs are available
-  # Configure looks in $dev for headers
-  # Runtime links against $out/lib
-}
-```
-
-### Specifying Which Outputs
-
-By default, all outputs are included. You can specify:
-
-```nix
-buildInputs = [
-  # Only runtime from gtk3
-  pkgs.gtk3.out
-  # Only development from libfoo
-  pkgs.libfoo.dev
-];
-```
-
-## Benefits of Multiple Outputs
-
-### 1. Smaller Closures
-
-Only install what you need:
+**Build and Inspect:**
 
 ```bash
-# Install only runtime
-nix profile add nixpkgs#gtk3.out
-
-# Install with development files
-nix profile add nixpkgs#gtk3.dev
+git init && git add flake.nix
+nix build .
+nix path-info -Sh ./result
 ```
 
-### 2. Faster Deployments
+**The Failure:**
+Your app's closure size is over 50 Megabytes! Every user who depends on `bloated-app` will be forced to download that useless dummy documentation to their `/nix/store`.
 
-Deploy only runtime files to production:
+## Step 1: Splitting the Outputs
+
+To fix this, we instruct Nix to create **separate store paths** for a single build.
+
+Add `split-app` to your `packages` set:
 
 ```nix
-# Deploy script
-nix copy --to ssh://server /nix/store/*-gtk3-out
+      # 2. THE SPLIT APP (The Fix)
+      split-app = pkgs.stdenv.mkDerivation {
+        name = "split-app";
+        dontUnpack = true;
+        
+        # We declare multiple outputs. 
+        # "out" is always the default.
+        outputs = [ "out" "doc" ];
+        
+        installPhase = ''
+          # Nix provides environment variables for each output!
+          mkdir -p $out/bin $doc/share/doc
+          
+          # The executable goes to the default output ($out)
+          echo "#!${pkgs.bash}/bin/bash" > $out/bin/my-app
+          echo "echo 'Running...'" >> $out/bin/my-app
+          chmod +x $out/bin/my-app
+          
+          # The massive documentation goes to the secondary output ($doc)
+          head -c 50M </dev/zero > $doc/share/doc/manual.html
+        '';
+      };
 ```
 
-### 3. Cleaner Systems
-
-Keep development files separate from runtime:
+**Test the Fix:**
 
 ```bash
-# Production server - only out
-/nix/store/*-gtk3-out/
-
-# Development machine - all outputs
-/nix/store/*-gtk3-out/
-/nix/store/*-gtk3-dev/
-/nix/store/*-gtk3-doc/
+nix build .#split-app
+nix path-info -Sh ./result
 ```
 
-## Common Patterns
+**Success:** The size is now just a few kilobytes! By default, `nix build` only asks for the `out` output. The `doc` output was still built during the same phase and lives in your `/nix/store`, but it has been neatly separated.
 
-### Pattern 1: Library with Development Files
+## Step 2: Accessing Secondary Outputs
+
+How do you get the documentation if you actually want it?
+You explicitly request the `doc` output using the dot syntax:
+
+```bash
+# Build the documentation output specifically
+nix build .#split-app.doc
+
+# Inspect the result
+ls -lh ./result/share/doc/manual.html
+```
+
+When you define `outputs = [ "out" "dev" "doc" ];`, Nix automatically adds these as attributes to your package.
+
+* `pkgs.split-app` points to the default `out`.
+* `pkgs.split-app.doc` points to the `doc` store path.
+
+## Step 3: The Mechanism (Glass Box)
+
+Let's look at the `.drv` file to see how Nix handles this internally.
+
+```bash
+nix derivation show .#split-app
+```
+
+**The Output:**
+Look at the `outputs` object. Notice how Nix pre-calculated **two different store paths** for the exact same build:
+
+```json
+      "outputs": {
+        "doc": {
+          "path": "/nix/store/...-split-app-doc"
+        },
+        "out": {
+          "path": "/nix/store/...-split-app"
+        }
+      },
+```
+
+If you look in the `env` object further down, you'll see how `stdenv` gets its variables:
+
+```json
+        "doc": "/nix/store/...-split-app-doc",
+        "out": "/nix/store/...-split-app",
+        "outputs": "out doc",
+```
+
+This is why you were able to use `$doc` in your bash script—Nix passed the pre-calculated store path as a standard environment variable into the build sandbox.
+
+## Step 4: Stdenv Magic (`moveToOutput`)
+
+If you are packaging standard C software (like using `make install`), the provided `Makefile` usually dumps *everything* into `$out` blindly. It doesn't know about `$doc` or Nix's output separation.
+
+Instead of writing complex patches for every `Makefile`, `stdenv` provides a Bash helper function called `moveToOutput`. You can use it in your `postInstall` phase to clean up the mess dynamically.
 
 ```nix
-stdenv.mkDerivation {
-  name = "mylib-1.0";
-
-  outputs = ["out" "dev"];
-
-  buildInputs = [ pkgs.pkg-config ];
-
-  configureFlags = [
-    "--prefix=$out"
-    "--includedir=$dev/include"
-    "--libdir=$out/lib"
-    "--pkgconfigdir=$dev/lib/pkgconfig"
-  ];
-
   postInstall = ''
+    # Move the documentation folder from $out to $doc
+    moveToOutput "share/doc" "$doc"
+    
+    # Move C headers from $out to $dev
     moveToOutput "include" "$dev"
-    moveToOutput "lib/pkgconfig" "$dev/lib/pkgconfig"
   '';
-}
-```
-
-### Pattern 2: Application with Documentation
-
-```nix
-stdenv.mkDerivation {
-  name = "myapp-1.0";
-
-  outputs = ["out" "doc"];
-
-  installPhase = ''
-    mkdir -p $out $doc
-    cp myapp $out/bin/
-    cp -r man $doc/
-    cp README.md $doc/
-  '';
-}
-```
-
-### Pattern 3: Tools with Plugins
-
-```nix
-stdenv.mkDerivation {
-  name = "editor-1.0";
-
-  outputs = ["out" "plugins"];
-
-  installPhase = ''
-    mkdir -p $out $plugins
-    cp editor $out/bin/
-    cp -r plugins/* $plugins/
-  '';
-}
-```
-
-## Querying Multiple Outputs
-
-```bash
-# Show all outputs for a package
-nix eval nixpkgs#gtk3.outputs
-
-# Build specific output
-nix build .#gtk3.dev
-
-# Show what an output contains
-nix store ls /nix/store/*-gtk3-dev/
-
-# Check references
-nix path-info /nix/store/*-gtk3-out
-```
-
-## Best Practices
-
-1. **Use conventional names**: `out`, `bin`, `dev`, `doc`, `man`
-2. **Separate runtime from development**: Users can install only what they need
-3. **Use moveToOutput**: Avoid manual path construction
-4. **Consider separability**: Use `dontBuildDev` when appropriate
-5. **Document outputs**: Comment what each output contains
-
-## Troubleshooting
-
-### Files in Wrong Output
-
-Use `moveToOutput` to correct:
-
-```nix
-postInstall = ''
-  # Move misplaced files
-  moveToOutput "share/man" "$doc"
-  moveToOutput "include" "$dev"
-'';
-```
-
-### Missing Dependencies
-
-Some packages expect all outputs available:
-
-```nix
-buildInputs = [
-  # Force all outputs available
-  pkgs.gtk3
-];
 ```
 
 ## Summary
 
-- Multiple outputs split a derivation into separate store paths
-- Use `outputs = ["out" "dev" "doc"]` to define
-- Environment variables: `$out`, `$doc`, `$dev`, `$bin`, etc.
-- `bin` output's bin directory is added to PATH automatically
-- Benefits: smaller closures, faster deployments, cleaner systems
-- Use `moveToOutput` helper to organize files
-- Nixpkgs packages commonly use multiple outputs
+* **The Trap:** Putting docs and headers in `$out` bloats the runtime closure of everyone who uses your software.
+* **Outputs Array:** Declare `outputs = [ "out" "doc" "dev" ];` to split the build into multiple independent store paths.
+* **Environment Variables:** Nix injects `$out`, `$doc`, and `$dev` pointing to the respective store paths so your build scripts can route files correctly.
+* **Accessing:** Use `.#package.doc` or `pkgs.package.doc` to explicitly reference a secondary output.
+* **`moveToOutput`:** A standard `stdenv` helper to shift files into their correct outputs after a messy `make install`.
 
 ## Next Capsule
 
