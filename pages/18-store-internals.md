@@ -153,6 +153,14 @@ nix why-depends .#my-app /nix/store/dzi68gvj7y25iidp3lyha6cwzi3rgqwr-cowsay-3.8.
 
 **The Glass Box:** `why-depends` scans the bytes inside the output files and prints which store paths it found and in which file. Nix literally relies on string-matching to build the runtime dependency graph.
 
+**Alternative Syntax:** When both packages are available in a flake, you can use the convenient flake attribute syntax:
+
+```bash
+nix why-depends nixpkgs#hello nixpkgs#glibc
+```
+
+This works because Nix resolves `nixpkgs#hello` and `nixpkgs#glibc` to their store paths automatically.
+
 ## Summary
 
 * **Input-Addressed:** Normal derivations. The store path changes if the build instructions or inputs change.
