@@ -2,580 +2,205 @@
 
 ## Introduction
 
-Welcome to the twentieth and final Nix capsule. In the previous capsule, we explored multiple outputs. In this capsule, we'll explore **fetching sources**—how to download and verify sources using fetchurl, fetchFromGitHub, and other fetch helpers.
+Welcome to the twentieth and final Nix capsule.
 
-Understanding how to fetch sources is essential for creating reproducible packages from external code.
+So far, we have built packages using local files (`src = ./.`) or simple `fetchurl` downloads. But most software lives in version control systems like GitHub or GitLab.
 
-## The Fetching Problem
+In this final capsule, we will explore **Fetchers**—the functions Nix uses to securely and reproducibly download source code from the internet.
 
-When packaging software, you need to:
+## The TOFU Trap (Fail-First)
 
-1. Download source code from the internet
-2. Verify the download hasn't been tampered with
-3. Ensure reproducibility (same URL = same content = same path)
+Nix requires a cryptographic hash for any external download to ensure reproducibility (Fixed-Output Derivations). But if you are packaging a brand new GitHub repository, how can you possibly know the hash of the code before you download it?
 
-Nix solves this with **fixed-output derivations**—downloaders that verify content hashes.
+You use a workflow called **TOFU (Trust On First Use)**. You intentionally break the build to ask Nix for the answer.
 
-## fetchurl
-
-The simplest fetcher for HTTP/HTTPS URLs:
+**File:** `flake.nix`
 
 ```nix
-stdenv.mkDerivation {
-  name = "hello-2.12.1";
+{
+  description = "Fetching Sources Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-  src = fetchurl {
-    url = "mirror://gnu/hello/hello-2.12.1.tar.gz";
-    sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in {
+    packages.${system} = rec {
+
+      # 1. THE TOFU TRAP
+      # We want to fetch the patchelf source code from GitHub
+      source-code = pkgs.fetchFromGitHub {
+        owner = "NixOS";
+        repo = "patchelf";
+        rev = "0.18.0"; # Always pin a specific commit or tag!
+        
+        # ⚠️ FAIL-FIRST: We leave the hash empty. 
+        # This forces Nix to download it, compute the hash, and fail.
+        hash = ""; 
+      };
+
+      default = source-code;
+    };
   };
 }
+
 ```
 
-### Required Attributes
-
-| Attribute | Purpose                                |
-| --------- | -------------------------------------- |
-| `url`     | URL to download                        |
-| `sha256`  | Expected SHA-256 hash (base32-encoded) |
-
-### Computing the Hash
+**Try to build it:**
 
 ```bash
-# Download the file first
-curl -L https://example.com/file.tar.gz -o file.tar.gz
+git init && git add flake.nix
+nix build .
 
-# Compute hash in correct format
-nix hash-file --base32 file.tar.gz
-# sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
 ```
 
-### URL Mirrors
+**The Failure:**
+Nix will download the repository, compute the hash, and abort the build with a highly useful error message:
 
-The `mirror://` scheme supports multiple mirrors:
+```text
+error: hash mismatch in fixed-output derivation
+  specified: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+  got:       sha256-nO7Yk43K4M3x5B1qP/iQZ1eG6V5pW1X6R+Q8eU/uXwI=
+
+```
+
+## Step 1: Securing the Source
+
+To fix the build, you simply copy the `got:` hash from the error message and paste it into your `flake.nix`:
 
 ```nix
-fetchurl {
-  url = "mirror://gnu/hello/hello-2.12.1.tar.gz";
-  sha256 = "sha256-...";
-}
+      source-code = pkgs.fetchFromGitHub {
+        owner = "NixOS";
+        repo = "patchelf";
+        rev = "0.18.0";
+        # The true hash provided by the TOFU failure
+        hash = "sha256-nO7Yk43K4M3x5B1qP/iQZ1eG6V5pW1X6R+Q8eU/uXwI="; 
+      };
+
 ```
 
-Nix tries multiple GNU mirrors automatically.
+Run `nix build .` again, and it will succeed! The resulting store path will contain the raw source code of the repository.
 
-## fetchzip
+> **Didactic Check:** Why must we use a specific tag (`rev = "0.18.0"`) instead of `rev = "main"`?
+> *Because `main` changes!* If someone commits to `main` tomorrow, the contents will change, but your `flake.nix` will still be enforcing today's `hash`. The build would fail for anyone trying to reproduce it.
 
-For ZIP archives:
+## Step 2: The Mechanism (Glass Box)
 
-```nix
-fetchzip {
-  url = "https://example.com/project.zip";
-  sha256 = "sha256-...";
-}
-```
+Many developers assume `fetchFromGitHub` runs `git clone` under the hood. It doesn't.
 
-Automatically extracts the archive contents.
-
-## fetchFromGitHub
-
-For GitHub repositories:
-
-```nix
-fetchFromGitHub {
-  owner = "NixOS";
-  repo = "nixpkgs";
-  rev = "23.11";
-  sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-}
-```
-
-### Attributes
-
-| Attribute | Purpose               |
-| --------- | --------------------- |
-| `owner`   | Repository owner      |
-| `repo`    | Repository name       |
-| `rev`     | Git commit SHA or tag |
-| `sha256`  | Expected hash         |
-
-### Using Refs
-
-```nix
-fetchFromGitHub {
-  owner = "owner";
-  repo = "repo";
-  rev = "v1.2.3";  # Tag or commit
-  sha256 = "sha256-...";
-}
-```
-
-### Private Repositories
-
-Use OAuth tokens:
+Let's inspect the derivation to see what Nix actually executed.
 
 ```bash
-# Set environment variable
-export NIX_GITHUB_TOKEN="ghp_..."
+nix derivation show .#source-code
+
 ```
+
+**The Output:**
+If you look at the `builder` and `env` attributes, you will not see `git`. You will see tools related to `fetchzip` and `curl`.
+
+**The Glass Box:** Running `git clone` downloads the entire `.git` history, which wastes massive amounts of bandwidth and storage. Instead, `fetchFromGitHub` intelligently constructs a URL to GitHub's automated tarball generator (e.g., `https://github.com/NixOS/patchelf/archive/0.18.0.tar.gz`). It downloads the archive, unpacks it, and deletes the `.git` folder metadata.
+
+*Note: This is why the hash of `fetchFromGitHub` will not match the hash of a local `git clone`!*
+
+## Step 3: Fetching in a Real Build
+
+A fetcher like `fetchFromGitHub` simply returns a string pointing to the `/nix/store` path where it saved the code. Because of this, we can plug it directly into the `src` attribute of a standard `mkDerivation`.
+
+Let's complete our `flake.nix` by actually building the C++ project we just fetched.
+
+**File:** `flake.nix` (Completed)
 
 ```nix
-fetchFromGitHub {
-  owner = "owner";
-  repo = "private-repo";
-  rev = "main";
-  sha256 = "sha256-...";
-  # Token from environment
-}
-```
+{
+  description = "Fetching Sources Demo";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-## fetchFromGitea
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in {
+    packages.${system} = rec {
 
-For Gitea instances:
+      # We fetch the source
+      patchelf-source = pkgs.fetchFromGitHub {
+        owner = "NixOS";
+        repo = "patchelf";
+        rev = "0.18.0";
+        hash = "sha256-nO7Yk43K4M3x5B1qP/iQZ1eG6V5pW1X6R+Q8eU/uXwI="; 
+      };
 
-```nix
-fetchFromGitea {
-  owner = "owner";
-  repo = "repo";
-  rev = "v1.0.0";
-  sha256 = "sha256-...";
-  domain = "codeberg.org";  # Gitea instance
-}
-```
+      # We build the source
+      patchelf-app = pkgs.stdenv.mkDerivation {
+        name = "my-patchelf";
+        
+        # Nix evaluates 'patchelf-source' to its store path, 
+        # and stdenv automatically unpacks it!
+        src = patchelf-source;
+        
+        # We add the tools required to build this specific project
+        nativeBuildInputs = [ pkgs.autoreconfHook ];
+      };
 
-## fetchFromGitLab
-
-For GitLab projects:
-
-```nix
-fetchFromGitLab {
-  owner = "owner";
-  repo = "repo";
-  rev = "v1.0.0";
-  sha256 = "sha256-...";
-  # Optional: domain = "gitlab.com";
-}
-```
-
-## fetchTarball
-
-Generic tarball fetcher:
-
-```nix
-fetchTarball {
-  url = "https://example.com/archive.tar.gz";
-  sha256 = "sha256-...";
-}
-```
-
-## fetchPip
-
-For Python packages:
-
-```nix
-fetchPip {
-  pname = "requests";
-  version = "2.31.0";
-  hash = "sha256-...";
-}
-```
-
-## Hash Formats
-
-### Base32 (for sha256 in fetchers)
-
-```bash
-nix hash-file --base32 file.tar.gz
-# Output: sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-```
-
-### Base16 (hex)
-
-```bash
-nix hash-file file.tar.gz
-# Output: sha256:deadbeef...
-```
-
-### In Your Code
-
-```nix
-# Use base32 format (required for fetchurl)
-sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-
-# Or with sha256: prefix
-sha256 = "sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-```
-
-### Wrong Format Error
-
-If you get the hash format wrong:
-
-```bash
-hash mismatch in downloaded file
-```
-
-Recompute with correct format:
-
-```bash
-nix hash-file --base32 ./downloaded-file
-```
-
-## Immutable URLs
-
-Fetchers produce **fixed-output derivations**:
-
-```nix
-# Even if the URL changes, the hash stays the same
-# Path is based on the hash, not the URL
-
-fetchurl {
-  url = "https://example.com/file.tar.gz";
-  sha256 = "sha256-...";  # This determines the path
-}
-```
-
-### URL vs Hash
-
-| What            | Determines Path            |
-| --------------- | -------------------------- |
-| Input-addressed | URL, builder, all inputs   |
-| Fixed-output    | Only the declared `sha256` |
-
-This means:
-
-- URL can go offline → path still valid (cached)
-- Content must match hash → tampering detected
-
-## Offline Builds
-
-Fixed-output derivations can be built offline if cached:
-
-```bash
-# Build from cache
-nix build .#package
-
-# Offline mode (fail if not cached)
-nix build --offline .#package
-```
-
-## Using fetchers in Expressions
-
-### Simple Package
-
-```nix
-{ stdenv, fetchurl }:
-
-stdenv.mkDerivation {
-  name = "hello-2.12.1";
-
-  src = fetchurl {
-    url = "mirror://gnu/hello/hello-2.12.1.tar.gz";
-    sha256 = "sha256-tQbjQY2vY/5v3p9I4F/0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      default = patchelf-app;
+    };
   };
 }
+
 ```
 
-### With Unpack Phase
+Run `nix build .`, and you have just downloaded and compiled a real open-source project from scratch!
 
-```nix
-{ stdenv, fetchzip }:
+## Other Common Fetchers
 
-stdenv.mkDerivation {
-  name = "myproject";
+While `fetchFromGitHub` is the most common, `nixpkgs` provides helpers for almost any scenario:
 
-  src = fetchzip {
-    url = "https://github.com/owner/repo/archive/refs/tags/v1.0.zip";
-    sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-  };
-
-  unpackPhase = ''
-    unzip -q $src
-    mv repo-* source
-  '';
-
-  installPhase = ''
-    cd source
-    make install
-  '';
-}
-```
-
-### Multiple Sources
-
-```nix
-stdenv.mkDerivation {
-  name = "mypackage";
-
-  srcs = [
-    (fetchurl {
-      url = "https://example.com/main.tar.gz";
-      sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-    })
-    (fetchurl {
-      url = "https://example.com/data.tar.gz";
-      sha256 = "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
-    })
-  ];
-
-  unpackPhase = ''
-    tar -xf $src
-    tar -xf $srcs
-  '';
-}
-```
-
-## Fetching Private Sources
-
-### SSH for Git
-
-```nix
-fetchgit {
-  url = "git@github.com:owner/repo.git";
-  rev = "main";
-  sha256 = "sha256-...";
-  # Uses SSH keys from ssh-agent
-}
-```
-
-### With Authentication
-
-```bash
-# Set up credentials
-export NIX_GITHUB_TOKEN="ghp_..."
-```
-
-```nix
-fetchFromGitHub {
-  owner = "owner";
-  repo = "private-repo";
-  rev = "main";
-  sha256 = "sha256-...";
-  # Token from NIX_GITHUB_TOKEN
-}
-```
-
-## Verification
-
-### After Download
-
-```bash
-# Build and verify
-nix build .#package
-
-# Check the path
-nix path-info /nix/store/*-hello-*
-
-# Verify hash manually
-nix hash-path --base32 /nix/store/*-hello-*
-```
-
-### Debugging Fetch Failures
-
-```bash
-# Verbose output
-nix build .#package -vvvv
-
-# Check network
-curl -I https://example.com/file.tar.gz
-
-# Verify hash locally
-nix hash-file --base32 downloaded-file
-```
-
-## Best Practices
-
-### 1. Always Include Hash
-
-Never omit the hash—even for testing:
-
-```nix
-# BAD - will fail
-fetchurl {
-  url = "https://...";
-  # sha256 = "...";
-}
-
-# GOOD - even for testing
-fetchurl {
-  url = "https://...";
-  sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-}
-```
-
-### 2. Use Stable URLs
-
-Prefer stable archive URLs over dynamic ones:
-
-```nix
-# GOOD - stable archive URL
-fetchurl {
-  url = "https://github.com/owner/repo/archive/v1.0.0.tar.gz";
-  sha256 = "...";
-}
-
-# Avoid - tag URL can change
-fetchurl {
-  url = "https://github.com/owner/repo/archive/latest.tar.gz";
-  sha256 = "...";
-}
-```
-
-### 3. Compute Hashes Correctly
-
-```bash
-# Correct method
-nix hash-file --base32 downloaded-file
-
-# Wrong - wrong format
-nix hash-file downloaded-file  # base16, not base32
-```
-
-### 4. Document Sources
-
-Comment your fetchers:
-
-```nix
-# From: https://example.com/source-1.0.tar.gz
-# Checksum: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-src = fetchurl {
-  url = "https://example.com/source-1.0.tar.gz";
-  sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-};
-```
-
-## Common Patterns
-
-### Pattern 1: GitHub Archive
-
-```nix
-fetchFromGitHub {
-  owner = "owner";
-  repo = "repo";
-  rev = "v2.0.0";
-  sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-}
-```
-
-### Pattern 2: PyPI Package
-
-```nix
-fetchPip {
-  pname = "requests";
-  version = "2.31.0";
-  hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-}
-```
-
-### Pattern 3: Multiple Sources
-
-```nix
-stdenv.mkDerivation {
-  name = "mypackage";
-
-  srcs = [
-    (fetchurl {
-      url = "https://example.com/main-v1.0.tar.gz";
-      sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-    })
-    (fetchurl {
-      url = "https://example.com/data-v1.0.tar.gz";
-      sha256 = "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
-    })
-  ];
-
-  unpackPhase = ''
-    tar -xf $src
-    tar -xf $srcs
-  '';
-}
-```
-
-## Troubleshooting
-
-### Hash Mismatch
-
-```bash
-hash mismatch in downloaded file
-```
-
-Fix:
-
-```bash
-# Download file
-curl -L https://example.com/file.tar.gz -o file.tar.gz
-
-# Get correct hash
-nix hash-file --base32 file.tar.gz
-
-# Update flake.nix with correct hash
-```
-
-### URL 404
-
-```bash
-404 Not Found
-```
-
-Check:
-
-```bash
-# Verify URL works
-curl -I https://example.com/file.tar.gz
-
-# Update URL if moved
-```
-
-### Network Issues
-
-```bash
-# Test connection
-curl -I https://example.com
-
-# Check proxy settings
-env | grep -i proxy
-```
+* **`pkgs.fetchurl`**: For direct single-file or tarball downloads.
+* **`pkgs.fetchzip`**: Downloads an archive and automatically unzips/untars it into a directory.
+* **`pkgs.fetchgit`**: Actually runs `git clone`. Use this only if you specifically need Git submodules or if the host doesn't support tarball generation.
+* **`pkgs.fetchFromGitLab` / `fetchFromGitea`**: Specialized helpers for other popular forges.
 
 ## Summary
 
-- Use `fetchurl` for HTTP/HTTPS, `fetchzip` for ZIP, `fetchFromGitHub` for GitHub
-- Always provide the `sha256` hash—required for reproducibility
-- Compute hashes with `nix hash-file --base32`
-- Fetchers create fixed-output derivations (path based on hash)
-- Use `fetchFromGitHub` with `owner`, `repo`, `rev`, and `sha256`
-- Multiple sources use `srcs` array
-- Private repos use SSH or tokens
+* **TOFU (Trust On First Use):** Set `hash = ""` to intentionally fail a build, letting Nix calculate the correct hash for a new download.
+* **Pinning:** Never use floating tags like `main` or `latest` in fetchers. Always use immutable commit hashes or release tags.
+* **The Glass Box:** `fetchFromGitHub` uses `fetchzip` under the hood to download tarballs, saving bandwidth and stripping non-deterministic `.git` folders.
+* **Integration:** Fetchers return store paths. You assign them directly to the `src` attribute of `mkDerivation`.
 
 ---
 
 ## Congratulations
 
-You've completed the Nix Capsules series. You now understand:
+You now have a complete toolkit. Here's what you can build next:
 
-- The Nix expression language (types, functions, imports)
-- How derivations work and how to build packages
-- Store mechanics and content-addressing
-- Flake architecture and project structure
-- Package composition patterns (inputs, callPackage, override)
-- Garbage collection and profile management
-- Nixpkgs configuration and overlays
-- Dependency propagation and hooks
-- Store internals and multiple outputs
-- Fetching sources with proper verification
+### Your First Real Project
 
-With this foundation, you're ready to:
+Pick a project you use daily—write its `flake.nix` using:
 
-- Create your own Nix packages
-- Use flakes for project management
-- Understand and modify nixpkgs
-- Set up development environments with `nix develop`
-- Build reproducible, declarative systems
+* `fetchFromGitHub` to fetch dependencies
+* `mkDerivation` to build it
+* `devShell` for development
 
-Continue exploring the Nix ecosystem—the community is active and helpful!
+### Continue Learning
 
-```nix
-# End of Nix Capsules
+The Nix ecosystem has specialized guides built on what you just learned:
 
-# For more information, see:
-# - Nix Manual: https://nix.dev/manual/nix
-# - Nixpkgs Manual: https://nixos.org/manual/nixpkgs
-# - NixOS Wiki: https://nixos.org/wiki
-# - Zero to Nix: https://zero-to-nix.com (for quick reference)
-```
+* **Home Manager**: [nix-community.github.io/home-manager](https://nix-community.github.io/home-manager) — declarative home directory management
+* **NixOS**: [nixos.org/manual/nixos](https://nixos.org/manual/nixos) — declarative system configuration
+* **devenv**: [devenv.sh](https://devenv.sh/) — developer environments at scale
+* **flakehub.com**: [flakehub.com](https://flakehub.com/) — deployment with flakes
+
+### References
+
+For ongoing documentation while you build:
+
+* **Nix Manual**: [nix.dev/manual/nix](https://nix.dev/manual/nix) — command and language reference
+* **Nixpkgs Manual**: [nixos.org/manual/nixpkgs](https://nixos.org/manual/nixpkgs) — packaging guide
+* **Zero to Nix**: [zero-to-nix.com](https://zero-to-nix.com) — quick reference
+
+You started by running binaries. Now you can fetch, build, compose, and ship.
+
+Go build something you'll actually use.
+
+---
+
+*The complete series: [Nix Capsules](../README.md)*
