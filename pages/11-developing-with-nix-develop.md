@@ -30,7 +30,7 @@ Let's create a flake that provides a compiler, a build system (Make), and a debu
   description = "Nix Capsule: C Development Environment";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
   outputs = { self, nixpkgs }:

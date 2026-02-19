@@ -43,7 +43,7 @@ We will build **GNU Hello** from its source tarball.
   description = "Nix Capsule 9: stdenv Demo";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
   outputs = { self, nixpkgs }:

@@ -21,7 +21,7 @@ This series teaches **modern Nix only** (flakes and unified CLI) through progres
 8. [Store Path Mechanics](./pages/08-store-path-mechanics.md)
 9. [Building with stdenv](./pages/09-building-with-stdenv.md)
 10. [Automatic Runtime Dependencies](./pages/10-automatic-runtime-dependencies.md)
-11. [Developing with nix develop](./pages/11-developing-with-nix-shell.md)
+11. [Developing with nix develop](./pages/11-developing-with-nix-develop.md)
 
 ### Structure (12-14)
 

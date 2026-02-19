@@ -29,7 +29,7 @@ Inputs are resources your project needs. While `github` is the default, Nix can 
 ```nix
 inputs = {
   # 1. Standard GitHub (Flakes)
-  nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
   # 2. Local Paths (Crucial for development)
   # Allows you to depend on a library on your own disk.
@@ -67,7 +67,7 @@ Let's write a flake _without_ any helper libraries to understand the raw schema.
   description = "My First Raw Flake";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
   outputs = { self, nixpkgs }:
@@ -172,7 +172,7 @@ Here is the standard "For All Systems" pattern:
 
 ```nix
 {
-  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }:
   let

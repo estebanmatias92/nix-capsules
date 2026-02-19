@@ -27,7 +27,7 @@ Let's try to build something using a modern Flake. We will intentionally make mi
   description = "My First Derivation";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
   outputs = { self, nixpkgs }:
@@ -67,7 +67,7 @@ Update your `flake.nix`:
   description = "My Second Derivation";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
   outputs = { self, nixpkgs }:
@@ -112,7 +112,7 @@ We need to:
   description = "My Third Derivation";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
   outputs = { self, nixpkgs }:

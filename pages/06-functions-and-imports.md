@@ -159,7 +159,7 @@ Let's refactor our standard Flake to verify we understand exactly how data flows
   description = "Functions Demo";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
   # The Function Definition
@@ -187,49 +187,11 @@ Let's refactor our standard Flake to verify we understand exactly how data flows
 Run it:
 
 ```bash
-cat > flake.nix << 'EOF'
-{
-  description = "Functions Demo";
-  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-  outputs = { self, nixpkgs }:
-    let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-      sayHello = name: pkgs.writeShellScriptBin "greet" ''
-        echo "Hello, ${name}!"
-      '';
-    in {
-      packages.${system} = {
-        default = sayHello "Student";
-        custom  = sayHello "Advanced User";
-      };
-    };
-}
-EOF
 nix run .#default
-```
+# Output: Hello, Student!
 
-```bash
-cat > flake.nix << 'EOF'
-{
-  description = "Functions Demo";
-  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-  outputs = { self, nixpkgs }:
-    let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-      sayHello = name: pkgs.writeShellScriptBin "greet" ''
-        echo "Hello, ${name}!"
-      '';
-    in {
-      packages.${system} = {
-        default = sayHello "Student";
-        custom  = sayHello "Advanced User";
-      };
-    };
-}
-EOF
 nix run .#custom
+# Output: Hello, Advanced User!
 ```
 
 ## Summary

@@ -36,7 +36,7 @@ Build a simple program and check its runtime dependencies:
 
   # 1. Inputs: Define external dependencies (replaces 'import <nixpkgs>')
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
   # 2. Outputs: A function that takes inputs and produces artifacts
@@ -194,7 +194,7 @@ Graphviz depends on libraries for various formats:
 
   # 1. Inputs: Sources for dependencies (replaces channels)
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
   # 2. Outputs: The function that produces the artifacts
