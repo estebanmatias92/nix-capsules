@@ -57,3 +57,4 @@ Read sequentially from 01-20. Each capsule builds on previous concepts.
 - [Zero to Nix](https://zero-to-nix.com/) - Awareness and first exposure
 - [NixOS Manual](https://nixos.org/manual/nixos/) - System configuration (after Nix Capsules)
 - [Home Manager Manual](https://nix-community.github.io/home-manager/) - Home directory management (after Nix Capsules)
+- [Nixpkgs Manual](https://nixos.org/manual/nixpkgs) - Packaging guide
