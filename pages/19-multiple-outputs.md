@@ -102,7 +102,7 @@ nix build .#split-app
 nix path-info -Sh ./result
 ```
 
-**Success:** The size is now just a few kilobytes! By default, `nix build` only asks for the `out` output. The `doc` output was still built during the same phase and lives in your `/nix/store`, but it has been neatly separated.
+**Success:** The size is now down by 50MB! By default, `nix build` only asks for the `out` output. The `doc` output was still built during the same phase and lives in your `/nix/store`, but it has been neatly separated.
 
 ## Step 2: Accessing Secondary Outputs
 
@@ -114,7 +114,15 @@ You explicitly request the `doc` output using the dot syntax:
 nix build .#split-app.doc
 
 # Inspect the result
-ls -lh ./result/share/doc/manual.html
+ls
+# Output:
+# result  result-doc  ...
+
+# See the store paths
+readlink result result-doc
+# Output:
+# /nix/store/chza438x489hbimmbh0pnkvd8311xb5z-split-app
+# /nix/store/j7xpcara7ld8333ayzl2z47lnhdjj1j7-split-app-doc
 ```
 
 When you define `outputs = [ "out" "dev" "doc" ];`, Nix automatically adds these as attributes to your package.
