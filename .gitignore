@@ -10,4 +10,24 @@ Thumbs.db
 result
 result-*
 *.drv
-.nix-profile/
+
+# Nix development environment
+.direnv/
+.direnv/flake-profile
+.direnv/flake-profile-*-link
+
+# GitHub workflows and actions
+.github/workflows/
+
+# Pre-commit hooks
+.pre-commit-config.yaml
+
+# Shell scripts
+.github/scripts/
+
+# Lock files
+flake.lock
+
+# Nix store garbage
+/nix
+/tmp/nix-build-*
