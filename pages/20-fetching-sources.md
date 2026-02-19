@@ -96,7 +96,7 @@ nix derivation show .#source-code
 ```
 
 **The Output:**
-If you look at the `builder` and `env` attributes, you will not see `git`. You will see tools related to `fetchzip` and `curl`.
+If you look at the `inputs.drvs` and `structuredAttrs.nativeBuildInputs` attributes, you will not see `git`. You will see `curl` referenced as a dependency. The builder uses the `fetchzip` mechanism under the hood to download and unpack the archive.
 
 **The Glass Box:** Running `git clone` downloads the entire `.git` history, which wastes massive amounts of bandwidth and storage. Instead, `fetchFromGitHub` intelligently constructs a URL to GitHub's automated tarball generator (e.g., `https://github.com/NixOS/patchelf/archive/0.18.0.tar.gz`). It downloads the archive, unpacks it, and deletes the `.git` folder metadata.
 
