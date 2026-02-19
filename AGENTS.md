@@ -79,15 +79,37 @@ Explain the correct approach with complete, runnable code.
 - **Never** use `import <nixpkgs>` (The Import Trap)
 - **Never** use undefined placeholders like `# ...` or `src = ./.;` without content
 
-## Commands
+## Development vs CI/CD Separation
 
-### Development Environment
+### Local Development (ignored by .gitignore)
+- `.direnv/` - Local Nix development environment
+- `.direnv/flake-profile*` - Development profile symlinks
+- `.envrc` - Direnv configuration
+- `result` - Build artifacts
+- `*.drv` - Nix derivation files
+
+### CI/CD Infrastructure (kept in version control)
+- `.github/workflows/` - GitHub Actions workflows
+- `.github/scripts/` - Validation scripts (CI/CD dependencies)
+- `.pre-commit-config.yaml` - Pre-commit hooks
+- `flake.lock` - Dependency lock file
+
+### Local Development Commands
 ```bash
 # Enter Nix development shell (installs: statix, nil, alejandra)
 nix develop
 
 # Or use direnv (configured in .envrc)
 direnv allow
+```
+
+### CI/CD Validation Commands
+```bash
+# Run GitHub Actions locally for testing (requires act tool)
+act -j verify-commands
+
+# Or use pre-commit hooks for local validation
+pre-commit run --all-files
 ```
 
 ### Validation (run before committing capsule changes)
@@ -147,7 +169,7 @@ pre-commit run --all-files
 - `buildInputs`: Libraries linked on the host machine
 - `packages`: ONLY for `mkShell`, never for `mkDerivation`
 
-### Shell Scripts (infrastructure only)
+### Shell Scripts (CI/CD infrastructure only)
 
 - POSIX-compliant (`#!/bin/sh`)
 - Use `set -e` for error handling
@@ -161,23 +183,65 @@ pre-commit run --all-files
 ├── pages/               # PRIMARY: Capsule markdown files (01-20)
 │   ├── 01-why-you-should-give-it-a-try.md
 │   └── ...
-├── .github/
-│   ├── scripts/         # Validation scripts (supporting)
-│   └── workflows/       # GitHub Actions
+├── .github/            # CI/CD INFRASTRUCTURE (kept in version control)
+│   ├── workflows/       # GitHub Actions workflows (essential for CI/CD)
+│   └── scripts/        # Validation scripts (CI/CD dependencies)
 ├── flake.nix           # Dev shell (supporting)
 ├── MANIFEST.md         # Project philosophy
 └── README.md           # Project overview
 ```
 
-## Quick Reference
+## Development vs CI/CD Separation
 
-| Task | Command |
-| --- | --- |
-| Validate links | `.github/scripts/check-links.sh pages` |
-| Validate commands | `.github/scripts/check-commands.sh` |
-| Lint Nix | `statix check .` |
-| Format Nix | `alejandra .` |
-| Pre-commit | `pre-commit run --all-files` |
+### Local Development (ignored by .gitignore)
+- `.direnv/` - Local Nix development environment
+- `.direnv/flake-profile*` - Development profile symlinks
+- `.envrc` - Direnv configuration
+- `result` - Build artifacts
+- `*.drv` - Nix derivation files
+
+### CI/CD Infrastructure (kept in version control)
+- `.github/workflows/` - GitHub Actions workflows
+- `.github/scripts/` - Validation scripts (CI/CD dependencies)
+- `.pre-commit-config.yaml` - Pre-commit hooks
+- `flake.lock` - Dependency lock file
+
+### Local Development Commands
+```bash
+# Enter Nix development shell (installs: statix, nil, alejandra)
+nix develop
+
+# Or use direnv (configured in .envrc)
+direnv allow
+```
+
+### CI/CD Validation Commands
+```bash
+# Run GitHub Actions locally for testing (requires act tool)
+act -j verify-commands
+
+# Or use pre-commit hooks for local validation
+pre-commit run --all-files
+```
+
+### Validation (run before committing capsule changes)
+
+```bash
+# Critical: Check for broken internal links after renames/restructuring
+.github/scripts/check-links.sh pages
+
+# Verify documented Nix commands exist
+.github/scripts/check-commands.sh
+
+# Check for deprecated command usage
+.github/scripts/check-deprecated.sh pages
+
+# Full validation suite
+.github/scripts/check-links.sh pages && \
+.github/scripts/check-commands.sh && \
+.github/scripts/check-deprecated.sh pages && \
+echo "All checks passed!"
+```
 
 ## Pre-Commit Checklist for Capsule Changes
 
@@ -208,4 +272,4 @@ Example: `capsule: clarify override vs overrideAttrs distinction in cap 16`
 - **Runnable Code** - Examples must execute successfully (unless intentional failure)
 - **Modern Nix** - All examples use flakes, no legacy patterns
 - **Multi-arch Support** - Flakes should support: x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin
-- **Validate Links** - Always run check-links.sh after structural changes
+- **Validate Links** - Always run `.github/scripts/check-links.sh` after structural changes
