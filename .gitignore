@@ -11,23 +11,23 @@ result
 result-*
 *.drv
 
-# Nix development environment
+# Nix development environment (keep CI but ignore local)
 .direnv/
 .direnv/flake-profile
 .direnv/flake-profile-*-link
 
-# GitHub workflows and actions
-.github/workflows/
-
-# Pre-commit hooks
+# CI/CD pipeline artifacts (keep these)
+.github/
 .pre-commit-config.yaml
-
-# Shell scripts
-.github/scripts/
-
-# Lock files
 flake.lock
 
-# Nix store garbage
-/nix
-/tmp/nix-build-*
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Local shell environment
+.envrc
